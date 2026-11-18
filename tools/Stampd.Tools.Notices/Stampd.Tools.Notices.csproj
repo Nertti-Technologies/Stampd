@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Stampd.Tools.Notices</RootNamespace>
+    <AssemblyName>stampd-notices</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <Nullable>enable</Nullable>
+    <!-- Console tool: plain Console output, no logging framework or localisation. -->
+    <NoWarn>$(NoWarn);CA1848;CA1873;CA1303;CA1031</NoWarn>
+  </PropertyGroup>
+
+</Project>

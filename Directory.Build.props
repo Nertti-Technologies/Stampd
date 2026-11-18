@@ -85,6 +85,14 @@
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.404" PrivateAssets="All" />
   </ItemGroup>
 
+  <ItemGroup Label="Third-party notices" Condition="'$(IsPackable)' == 'true'">
+    <!--
+      Every package carries the generated attributions for Stampd's dependencies at its root.
+      Regenerate by running the tools/Stampd.Tools.Notices project; CI fails if it is stale.
+    -->
+    <None Include="$(MSBuildThisFileDirectory)THIRD-PARTY-NOTICES.txt" Pack="true" PackagePath="\" Visible="false" />
+  </ItemGroup>
+
   <PropertyGroup Label="Deterministic builds">
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>

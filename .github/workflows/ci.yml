@@ -60,5 +60,10 @@ jobs:
       - name: Build (Release)
         run: dotnet build Stampd.slnx --configuration Release --no-restore
 
+      # Licence-policy gate + attribution drift check: fails if a dependency's licence is not
+      # allowed (notices/policy.json) or THIRD-PARTY-NOTICES.txt no longer matches the lock files.
+      - name: Third-party notices up to date
+        run: dotnet run --project tools/Stampd.Tools.Notices --configuration Release --no-build -- --check
+
       - name: Test (Stampd.Engine.Tests)
         run: dotnet test tests/Stampd.Engine.Tests/Stampd.Engine.Tests.csproj --configuration Release --no-build --verbosity normal

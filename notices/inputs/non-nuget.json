@@ -1,0 +1,10 @@
+[
+  {
+    "name": "PDF.js",
+    "version": "4.0.379",
+    "license": "Apache-2.0",
+    "url": "https://github.com/mozilla/pdf.js",
+    "usage": "loaded by Stampd.UI from cdnjs.cloudflare.com (Components/App.razor)",
+    "textFile": "pdfjs-4.0.379.txt"
+  }
+]

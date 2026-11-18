@@ -103,6 +103,10 @@ if (app.Environment.IsDevelopment())
     app.UseMail4Dev();
 }
 
+// Attributions for third-party components, including the PDF.js this UI loads in the browser.
+app.MapGet("/third-party-notices", () => Results.File(
+    Path.Combine(AppContext.BaseDirectory, "THIRD-PARTY-NOTICES.txt"), "text/plain; charset=utf-8"));
+
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
