@@ -1,0 +1,16 @@
+{
+  "_comment": "Licence-policy gate for tools/Stampd.Tools.Notices. 'allowed' are SPDX ids that may ship. 'reviewed' are packages with custom terms the owner has explicitly reviewed; each needs a reason. Anything else fails the build.",
+  "allowed": [
+    "MIT", "MIT-0", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "Zlib", "0BSD", "MS-PL", "PostgreSQL"
+  ],
+  "reviewed": [
+    {
+      "package": "Microsoft.Identity.Client.NativeInterop",
+      "reason": "Microsoft Software License Terms; section 3(e) forbids redistribution. Reaches Stampd only as a declared dependency of the Stampd.Infrastructure.SqlServer NuGet package (EF Core SqlServer -> Microsoft.Data.SqlClient -> Microsoft.Identity.Client.Broker); consumers fetch it from nuget.org. It must not be bundled into any image or self-contained build. Owner-approved 2026-11-19."
+    },
+    {
+      "package": "Microsoft.Data.SqlClient.SNI.runtime",
+      "reason": "Microsoft Software License Terms permitting distribution of the object code as Distributable Code. Declared dependency of the SqlServer provider only. Owner-approved 2026-11-19."
+    }
+  ]
+}

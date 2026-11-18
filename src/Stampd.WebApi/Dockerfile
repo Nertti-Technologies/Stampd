@@ -44,6 +44,8 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/publish .
+# Attributions for the bundled third-party components travel with the image.
+COPY LICENSE THIRD-PARTY-NOTICES.txt ./
 
 # Persistent state directories — mount volumes here.
 ENV ASPNETCORE_URLS=http://+:8080 \
