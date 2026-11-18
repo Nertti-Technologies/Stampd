@@ -32,7 +32,6 @@
       references for those would be redundant (NU1510).
     -->
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.300" />
   </ItemGroup>
 
   <ItemGroup>

@@ -43,6 +43,10 @@
       UseMail4Dev API names.
     -->
     <PackageReference Include="Hermex" Version="1.0.0" />
+    <!-- Security pin: Hermex 1.0.0 resolves Microsoft.Data.Sqlite 10.0.0 -> SQLitePCLRaw.lib.e_sqlite3
+         2.1.11, affected by GHSA-2m69-gcr7-jv3q (high). 10.0.15 brings 2.1.13, which is not affected.
+         Remove once Hermex itself depends on a patched version. -->
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.15" />
   </ItemGroup>
 
 </Project>
