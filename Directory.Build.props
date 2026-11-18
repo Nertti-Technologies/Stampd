@@ -39,12 +39,12 @@
       effective package version becomes 1.3.0-preview.1.
     -->
     <!--
-      v3.0.0 stable. v3.0 train shipped four pieces: tenant-isolated admin scopes
-      (alpha.1), OIDC relay for external IdPs (alpha.2), SAML2 SP scaffolding
-      (alpha.3), and industry compliance bundles (this release). Rules engine
-      moved to v3.1 candidates.
+      v3.0.1 patch: security updates for vulnerable transitive packages (Microsoft.* 10.0.15),
+      and THIRD-PARTY-NOTICES.txt bundled in every package. No API changes.
+      v3.0.0 shipped tenant-isolated admin scopes, OIDC relay for external IdPs, SAML2 SP
+      scaffolding and industry compliance bundles. Rules engine moved to v3.1 candidates.
     -->
-    <Version>3.0.0</Version>
+    <Version>3.0.1</Version>
 
     <Product>Stampd</Product>
     <Authors>Suresh Subramanian and Stampd contributors</Authors>
