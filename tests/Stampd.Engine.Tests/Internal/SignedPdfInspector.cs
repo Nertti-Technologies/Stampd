@@ -135,15 +135,59 @@ public sealed class SignedPdfInspector
 
         var hex = System.Text.Encoding.Latin1
             .GetString(pdfBytes, (int)openIdx + 1, (int)(closeIdx - openIdx - 1))
-            .TrimEnd('0', '\r', '\n', ' ', '\t');
-        if (hex.Length % 2 == 1)
-        {
-            hex += "0"; // restore final nibble if we trimmed one too many
-        }
+            .TrimEnd('\r', '\n', ' ', '\t');
 
-        var cmsBytes = Convert.FromHexString(hex);
+        var cmsBytes = TakeDerObject(Convert.FromHexString(hex));
         var signedData = new CmsSignedData(cmsBytes);
 
         return new SignedPdfInspector(pdfBytes, byteRange, openIdx, closeIdx, cmsBytes, signedData);
+    }
+
+    /// <summary>
+    /// Returns the DER object at the start of the zero-padded <c>/Contents</c> placeholder.
+    /// The length comes from the object's own header: trimming trailing zeros instead would
+    /// also drop real 0x00 bytes whenever the encoded CMS happens to end with one.
+    /// </summary>
+    internal static byte[] TakeDerObject(byte[] padded)
+    {
+        ArgumentNullException.ThrowIfNull(padded);
+        if (padded.Length < 2)
+        {
+            throw new InvalidOperationException("Signature /Contents is too short to hold a DER object.");
+        }
+
+        int headerLength;
+        int contentLength;
+        int lengthByte = padded[1];
+        if (lengthByte < 0x80)
+        {
+            headerLength = 2;
+            contentLength = lengthByte;
+        }
+        else
+        {
+            // Long form: the low bits give the number of length octets that follow.
+            int lengthOctets = lengthByte & 0x7F;
+            if (lengthOctets is 0 or > 4 || padded.Length < 2 + lengthOctets)
+            {
+                throw new InvalidOperationException("Signature /Contents is not a definite-length DER object.");
+            }
+
+            contentLength = 0;
+            for (int i = 0; i < lengthOctets; i++)
+            {
+                contentLength = (contentLength << 8) | padded[2 + i];
+            }
+            headerLength = 2 + lengthOctets;
+        }
+
+        int total = headerLength + contentLength;
+        if (contentLength < 0 || total > padded.Length)
+        {
+            throw new InvalidOperationException(
+                $"DER object claims {total} bytes but /Contents holds only {padded.Length}.");
+        }
+
+        return padded[..total];
     }
 }
