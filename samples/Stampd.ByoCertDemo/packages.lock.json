@@ -4,9 +4,9 @@
     "net10.0": {
       "Microsoft.AspNetCore.App.Internal.Assets": {
         "type": "Direct",
-        "requested": "[10.0.8, )",
-        "resolved": "10.0.8",
-        "contentHash": "v6KocthydFtUHBIRI29YsOHKOgsqcQubkNywVOxiYr4GSDSv+XO/AeyMJywlX+1tGUTGdydu/X7V+Tzeq4SsoA=="
+        "requested": "[10.0.14, )",
+        "resolved": "10.0.14",
+        "contentHash": "T1IOYbID1msKjQEh684HebnN+Xnq/pocMXDukOMZtzzPTf9c4/30+/JndM/1txrqwuSYqWvLiAQWzu4U93cshw=="
       },
       "BouncyCastle.Cryptography": {
         "type": "Transitive",
@@ -47,8 +47,8 @@
       },
       "System.Security.Cryptography.Pkcs": {
         "type": "Transitive",
-        "resolved": "8.0.1",
-        "contentHash": "CoCRHFym33aUSf/NtWSVSZa99dkd0Hm7OCZUxORBjRB16LNhIEOf8THPqzIYlvKM0nNDAPTRBa1FxEECrgaxxA=="
+        "resolved": "10.0.15",
+        "contentHash": "4jEv/lXDuQkh60lPU3hlwASErXdv1ZMKmsxVuBfZWiVKT5Q2QGo58kTa6rN519+PU+m4Hsj1m3yT8fN+Xw0XZw=="
       },
       "stampd.core": {
         "type": "Project"
@@ -57,7 +57,7 @@
         "type": "Project",
         "dependencies": {
           "BouncyCastle.Cryptography": "[2.6.2, )",
-          "Stampd.Core": "[2.1.0, )"
+          "Stampd.Core": "[3.0.0, )"
         }
       },
       "stampd.engine": {
@@ -67,21 +67,22 @@
           "PDFsharp": "[6.2.*, )",
           "SkiaSharp": "[3.119.4, )",
           "SkiaSharp.NativeAssets.Linux": "[3.119.4, )",
-          "Stampd.Core": "[2.1.0, )"
+          "Stampd.Core": "[3.0.0, )",
+          "System.Security.Cryptography.Pkcs": "[10.0.15, )"
         }
       },
       "stampd.timestamp.freetsa": {
         "type": "Project",
         "dependencies": {
-          "Stampd.Core": "[2.1.0, )",
-          "Stampd.Timestamp.Rfc3161": "[2.1.0, )"
+          "Stampd.Core": "[3.0.0, )",
+          "Stampd.Timestamp.Rfc3161": "[3.0.0, )"
         }
       },
       "stampd.timestamp.rfc3161": {
         "type": "Project",
         "dependencies": {
           "BouncyCastle.Cryptography": "[2.6.2, )",
-          "Stampd.Core": "[2.1.0, )"
+          "Stampd.Core": "[3.0.0, )"
         }
       }
     }
