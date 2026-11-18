@@ -5,7 +5,7 @@
 # Build command: docker build -f src/Stampd.WebApi/Dockerfile -t stampd/webapi .
 
 # ----- Build stage -----
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.404 AS build
 WORKDIR /src
 
 # Copy solution + props first so layer cache stays warm when only source changes.
@@ -34,7 +34,7 @@ RUN dotnet publish src/Stampd.WebApi/Stampd.WebApi.csproj \
     /p:UseAppHost=false
 
 # ----- Runtime stage -----
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.15 AS runtime
 WORKDIR /app
 
 # Install fonts so PDFsharp's text rendering doesn't error out at runtime
