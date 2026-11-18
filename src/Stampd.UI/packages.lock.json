@@ -4,11 +4,11 @@
     "net10.0": {
       "Hermex": {
         "type": "Direct",
-        "requested": "[1.0.0, )",
-        "resolved": "1.0.0",
-        "contentHash": "jldoIFUY+lDKzEggltbqmMvLPu+qLHbv42m76/0IcLse4v2o9ND31RtJAPn7OzxGTUNA+8ylkjkZn3FUtlbZCg==",
+        "requested": "[2.0.0, )",
+        "resolved": "2.0.0",
+        "contentHash": "1o0+zNzP+xjvSW6oTfQu/Uv+D0/yKNIXZHM8ScJ+qTNL6sF5uGxSpjI7vHsO46gL4amEpYjF/LSkHnrlI50SOg==",
         "dependencies": {
-          "Microsoft.Data.Sqlite": "10.0.0"
+          "Microsoft.Data.Sqlite": "10.0.15"
         }
       },
       "Microsoft.AspNetCore.App.Internal.Assets": {
@@ -16,17 +16,6 @@
         "requested": "[10.0.15, )",
         "resolved": "10.0.15",
         "contentHash": "cineG7aU2cpo+CC5rDORY4bFRya0mlaULDpzQ+ncfG0tMyZlWATyVAo2P29i0hH40EElK5O204pjT4XEYALb6g=="
-      },
-      "Microsoft.Data.Sqlite": {
-        "type": "Direct",
-        "requested": "[10.0.15, )",
-        "resolved": "10.0.15",
-        "contentHash": "PtnNCUloQOLAXhB09id+0CL2c9yd+9/wi0QHCHPa+zrTKEJTdu07jlUgblFjorYhKnwcHN1VS0z75jN8vFruuQ==",
-        "dependencies": {
-          "Microsoft.Data.Sqlite.Core": "10.0.15",
-          "SQLitePCLRaw.bundle_e_sqlite3": "2.1.13",
-          "SQLitePCLRaw.core": "2.1.13"
-        }
       },
       "Microsoft.FluentUI.AspNetCore.Components": {
         "type": "Direct",
@@ -56,6 +45,16 @@
           "Serilog.Sinks.Console": "6.1.1",
           "Serilog.Sinks.Debug": "3.0.0",
           "Serilog.Sinks.File": "7.0.0"
+        }
+      },
+      "Microsoft.Data.Sqlite": {
+        "type": "Transitive",
+        "resolved": "10.0.15",
+        "contentHash": "PtnNCUloQOLAXhB09id+0CL2c9yd+9/wi0QHCHPa+zrTKEJTdu07jlUgblFjorYhKnwcHN1VS0z75jN8vFruuQ==",
+        "dependencies": {
+          "Microsoft.Data.Sqlite.Core": "10.0.15",
+          "SQLitePCLRaw.bundle_e_sqlite3": "2.1.13",
+          "SQLitePCLRaw.core": "2.1.13"
         }
       },
       "Microsoft.Data.Sqlite.Core": {
