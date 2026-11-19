@@ -30,7 +30,8 @@ public sealed class AzureKeyVaultSealingProvider : ICryptographicSealingProvider
 {
     private readonly AzureKeyVaultSealingOptions _options;
     private readonly TokenCredential _credential;
-    private readonly Lazy<Task<X509Certificate2>> _certificate;
+    private readonly Func<CancellationToken, Task<X509Certificate2>> _loadCertificate;
+    private Task<X509Certificate2>? _certificate;
     private readonly Lazy<CryptographyClient> _cryptoClient;
 
     public AzureKeyVaultSealingProvider(AzureKeyVaultSealingOptions options, TokenCredential credential)
@@ -42,7 +43,7 @@ public sealed class AzureKeyVaultSealingProvider : ICryptographicSealingProvider
         _options = options;
         _credential = credential;
 
-        _certificate = new Lazy<Task<X509Certificate2>>(LoadCertificateAsync);
+        _loadCertificate = LoadCertificateAsync;
         _cryptoClient = new Lazy<CryptographyClient>(
             () => new CryptographyClient(_options.KeyIdentifier!, _credential));
     }
@@ -50,9 +51,36 @@ public sealed class AzureKeyVaultSealingProvider : ICryptographicSealingProvider
     /// <inheritdoc />
     public string Name => "AzureKeyVault";
 
+    /// <summary>Test seam: replaces the Key Vault download with <paramref name="loadCertificate"/>.</summary>
+    internal AzureKeyVaultSealingProvider(
+        AzureKeyVaultSealingOptions options,
+        TokenCredential credential,
+        Func<CancellationToken, Task<X509Certificate2>> loadCertificate)
+        : this(options, credential)
+    {
+        ArgumentNullException.ThrowIfNull(loadCertificate);
+        _loadCertificate = loadCertificate;
+    }
+
     /// <inheritdoc />
+    /// <remarks>
+    /// The certificate is downloaded once and shared. A download that fails or is cancelled
+    /// is not cached, so the next call retries instead of failing until the process
+    /// restarts. The shared download ignores any single caller's token; each caller's
+    /// <paramref name="cancellationToken"/> applies to its own wait.
+    /// </remarks>
     public Task<X509Certificate2> GetSigningCertificateAsync(CancellationToken cancellationToken = default)
-        => _certificate.Value;
+    {
+        var current = Volatile.Read(ref _certificate);
+        if (current is null || current.IsFaulted || current.IsCanceled)
+        {
+            var fresh = _loadCertificate(CancellationToken.None);
+            var original = Interlocked.CompareExchange(ref _certificate, fresh, current);
+            current = ReferenceEquals(original, current) ? fresh : original!;
+        }
+
+        return current.WaitAsync(cancellationToken);
+    }
 
     /// <inheritdoc />
     public async Task<byte[]> SignAsync(
@@ -73,11 +101,11 @@ public sealed class AzureKeyVaultSealingProvider : ICryptographicSealingProvider
         return result.Signature;
     }
 
-    private async Task<X509Certificate2> LoadCertificateAsync()
+    private async Task<X509Certificate2> LoadCertificateAsync(CancellationToken cancellationToken)
     {
         var certClient = new CertificateClient(_options.CertificateVaultUri!, _credential);
         var response = await certClient
-            .DownloadCertificateAsync(_options.CertificateName!)
+            .DownloadCertificateAsync(_options.CertificateName!, cancellationToken: cancellationToken)
             .ConfigureAwait(false);
         // DownloadCertificate returns an X509Certificate2; for HSM-backed keys it carries
         // only the public part (no exportable private key).

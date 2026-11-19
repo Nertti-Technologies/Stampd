@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
+using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Security;
 
 using Stampd.Core.Sealing;
@@ -21,7 +22,8 @@ namespace Stampd.Crypto.LocalCertificate;
 /// Signing is delegated to BouncyCastle's <c>RsaDigestSigner</c> rather than .NET's
 /// <c>RSA.SignData</c>. Both are PKCS#1 v1.5 with SHA-256 and should produce identical
 /// bytes, but the spike verified that BouncyCastle's output is what Adobe's PAdES verifier
-/// accepts cleanly in our PdfSharp + BC CMS pipeline.
+/// accepts cleanly in our PdfSharp + BC CMS pipeline. Keys marked non-exportable can't be
+/// handed to BouncyCastle; those sign through <c>RSA.SignData</c>, which yields the same bytes.
 /// </remarks>
 public sealed class LocalCertificateSealingProvider : ICryptographicSealingProvider
 {
@@ -61,8 +63,20 @@ public sealed class LocalCertificateSealingProvider : ICryptographicSealingProvi
             ?? throw new InvalidOperationException(
                 "Configured certificate does not expose an RSA private key. ECDSA keys are not yet supported by the local provider.");
 
-        var bcPrivateKey = DotNetUtilities.GetRsaKeyPair(rsa).Private;
         var algorithmName = MapAlgorithm(hashAlgorithm);
+
+        AsymmetricKeyParameter bcPrivateKey;
+        try
+        {
+            bcPrivateKey = DotNetUtilities.GetRsaKeyPair(rsa).Private;
+        }
+        catch (CryptographicException)
+        {
+            // The key is marked non-exportable (OS key store, smart card), so it can't be
+            // handed to BouncyCastle. Sign through the platform key instead: PKCS#1 v1.5 is
+            // deterministic, so the bytes are identical (asserted by a test).
+            return Task.FromResult(rsa.SignData(data, hashAlgorithm, RSASignaturePadding.Pkcs1));
+        }
 
         var signer = SignerUtilities.GetSigner(algorithmName);
         signer.Init(forSigning: true, bcPrivateKey);

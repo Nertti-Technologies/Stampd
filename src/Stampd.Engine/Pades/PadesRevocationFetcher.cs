@@ -83,13 +83,16 @@ internal sealed class PadesRevocationFetcher
                     crls.Add(info.Crl);
                 }
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 throw;
             }
             catch (Exception)
             {
-                // Best-effort — swallow and continue. The engine will log at a higher level.
+                // Best-effort: a failing or slow responder (including an HTTP timeout, which
+                // surfaces as a cancellation the caller did not request) leaves this
+                // certificate without revocation data, and signing continues. Nothing is
+                // logged here; the gap shows as missing DSS entries.
             }
         }
 

@@ -142,8 +142,17 @@ internal sealed class PadesCmsBuilder
             return new ProviderSignatureFactory(_provider, _hashAlgorithm, certificate);
         }
 
-        var bcPrivateKey = DotNetUtilities.GetRsaKeyPair(rsa).Private;
-        return new Asn1SignatureFactory(algorithmName, bcPrivateKey);
+        try
+        {
+            var bcPrivateKey = DotNetUtilities.GetRsaKeyPair(rsa).Private;
+            return new Asn1SignatureFactory(algorithmName, bcPrivateKey);
+        }
+        catch (CryptographicException)
+        {
+            // The key is marked non-exportable (OS key store, smart card). Sign through the
+            // provider instead, which uses the platform key without exporting it.
+            return new ProviderSignatureFactory(_provider, _hashAlgorithm, certificate);
+        }
     }
 
     private async Task<CmsSignedData> EmbedSignatureTimestampAsync(
