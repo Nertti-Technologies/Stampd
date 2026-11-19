@@ -18,4 +18,14 @@ namespace Stampd.Core;
 public sealed record SignedDocument(
     ReadOnlyMemory<byte> SignedPdf,
     string DocumentHashSha256,
-    DateTimeOffset SignedAtUtc);
+    DateTimeOffset SignedAtUtc)
+{
+    /// <summary>
+    /// The PAdES level the signature actually reached, which can be lower than
+    /// <see cref="SealingOptions.TargetLevel"/> when a timestamp authority or revocation
+    /// data was unavailable. Engines that do not set it report
+    /// <see cref="Entities.PAdESLevel.BB"/>, so the recorded level never overstates the
+    /// evidence.
+    /// </summary>
+    public Entities.PAdESLevel AchievedLevel { get; init; }
+}

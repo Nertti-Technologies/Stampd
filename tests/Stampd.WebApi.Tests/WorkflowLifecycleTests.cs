@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 using Stampd.Core.Entities;
 using Stampd.Core.Notifications;
+using Stampd.Core.Sealing;
 using Stampd.Engine.Rendering;
 using Stampd.Infrastructure;
 using Stampd.WebApi.Models;
@@ -22,7 +23,8 @@ namespace Stampd.WebApi.Tests;
 /// <summary>
 /// Signing-request lifecycle over HTTP: closed requests stop working, expiry is
 /// enforced, later signers in a sequence are emailed, bad images are refused at submit,
-/// webhooks can't target internal addresses, and bulk-send rows are dispatched once.
+/// webhooks can't target internal addresses, bulk-send rows are dispatched once, and
+/// the signed-document record names what actually sealed the document.
 /// </summary>
 public sealed class WorkflowLifecycleTests : IClassFixture<StampdWebApplicationFactory>
 {
@@ -108,6 +110,57 @@ public sealed class WorkflowLifecycleTests : IClassFixture<StampdWebApplicationF
         Assert.Equal(HttpStatusCode.OK, submit.StatusCode);
 
         Assert.Equal(["first@example.com", "second@example.com"], mail.Recipients());
+    }
+
+    [Fact]
+    public async Task CompletedRequest_RecordsTheProviderAndKeyThatSealedIt()
+    {
+        var client = await SenderClientAsync(_factory);
+        var templateId = await CreateTemplateAsync(client, ("Customer", 1));
+        var (requestId, tokens) = await DispatchAsync(client, templateId, expiresAtUtc: null, ("Customer", "alice@example.com"));
+
+        var anon = _factory.CreateClient();
+        Assert.Equal(HttpStatusCode.OK, (await anon.PostAsJsonAsync($"/api/sign/{tokens[0]}", TextValue("Alice"), Ct)).StatusCode);
+
+        using var scope = _factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var record = await services.GetRequiredService<StampdDbContext>().SignedDocumentRecords
+            .IgnoreQueryFilters()
+            .SingleAsync(r => r.SigningRequestId == requestId, Ct);
+        var sealing = services.GetRequiredService<ICryptographicSealingProvider>();
+        var certificate = await sealing.GetSigningCertificateAsync(Ct);
+
+        Assert.Equal(sealing.Name, record.SealingProviderName);
+        Assert.Equal(certificate.GetCertHashString(System.Security.Cryptography.HashAlgorithmName.SHA256), record.SealingKeyIdentifier);
+        // The test host has no TSA, so the configured B-T target falls back to B-B.
+        Assert.Equal(PAdESLevel.BB, record.PAdESLevel);
+        Assert.Null(record.TimestampAuthorityUrl);
+    }
+
+    [Fact]
+    public async Task CompletedRequest_SenderDownloadsTheSignedPdfById()
+    {
+        var client = await SenderClientAsync(_factory);
+        var templateId = await CreateTemplateAsync(client, ("Customer", 1));
+        var (requestId, tokens) = await DispatchAsync(client, templateId, expiresAtUtc: null, ("Customer", "alice@example.com"));
+
+        var before = JsonDocument.Parse(await client.GetStringAsync(new Uri($"/api/signing-requests/{requestId}", UriKind.Relative), Ct)).RootElement;
+        Assert.Equal(JsonValueKind.Null, before.GetProperty("signedDocumentId").ValueKind);
+
+        var anon = _factory.CreateClient();
+        Assert.Equal(HttpStatusCode.OK, (await anon.PostAsJsonAsync($"/api/sign/{tokens[0]}", TextValue("Alice"), Ct)).StatusCode);
+
+        var detail = JsonDocument.Parse(await client.GetStringAsync(new Uri($"/api/signing-requests/{requestId}", UriKind.Relative), Ct)).RootElement;
+        var documentId = detail.GetProperty("signedDocumentId").GetGuid();
+
+        var list = JsonDocument.Parse(await client.GetStringAsync(new Uri("/api/signing-requests?pageSize=200", UriKind.Relative), Ct)).RootElement;
+        var row = list.GetProperty("items").EnumerateArray().Single(i => i.GetProperty("id").GetGuid() == requestId);
+        Assert.Equal(documentId, row.GetProperty("signedDocumentId").GetGuid());
+
+        using var download = await client.GetAsync(new Uri($"/api/signed-documents/{documentId}/download", UriKind.Relative), Ct);
+        Assert.Equal(HttpStatusCode.OK, download.StatusCode);
+        var pdf = await download.Content.ReadAsByteArrayAsync(Ct);
+        Assert.Equal("%PDF"u8.ToArray(), pdf[..4]);
     }
 
     [Fact]

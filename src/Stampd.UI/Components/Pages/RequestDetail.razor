@@ -1,7 +1,7 @@
 @page "/designer/requests/{Id:guid}"
 @rendermode InteractiveServer
 @inject DesignerApiClient Api
-@inject IConfiguration Config
+@inject FileDownloader Downloader
 @inject IHostEnvironment HostEnv
 @* @inject NavigationManager Navigation *@
 
@@ -40,6 +40,11 @@
     else
     {
         var isCompleted = string.Equals(_detail.Status, "Completed", StringComparison.OrdinalIgnoreCase);
+
+        @if (_downloadError is not null)
+        {
+            <div class="signer-error" role="alert">@_downloadError</div>
+        }
 
         <!-- Summary card -->
         <section class="stampd-card">
@@ -128,13 +133,12 @@
                         <div>
                             @if (isCompleted)
                             {
-                                <a class="stampd-btn stampd-btn--primary"
-                                   href="@SignedDocumentUrlFor(r)"
-                                   target="_blank"
-                                   rel="noopener"
-                                   title="Open the sealed PDF in a new tab">
+                                <button type="button" class="stampd-btn stampd-btn--primary"
+                                        disabled="@(_detail.SignedDocumentId is null)"
+                                        @onclick="DownloadSignedAsync"
+                                        title="Download the sealed PDF">
                                     Download PDF
-                                </a>
+                                </button>
                             }
                             else if (!isDeclined && !string.IsNullOrWhiteSpace(r.AccessUrl))
                             {
@@ -203,6 +207,7 @@
     private SigningRequestDetail? _detail;
     private SigningRequestAuditPage? _audit;
     private bool _loading = true;
+    private string? _downloadError;
 
     private bool AutoAuth => HostEnv.IsDevelopment();
 
@@ -245,29 +250,22 @@
         }
     }
 
-    /// <summary>
-    /// Sender's signed-PDF download URL. Same workaround as SigningRequests.razor —
-    /// the DevAuthHttpHandler can't inject the JWT on plain <c>&lt;a href&gt;</c> navigation,
-    /// so we reuse the recipient's per-signature access token (which IS auth on that
-    /// endpoint). Every row gets a download link, all pointing at the same sealed PDF
-    /// — there's only one signed-document record per request because PAdES seals
-    /// once after every recipient has signed.
-    /// </summary>
-    private string SignedDocumentUrlFor(RecipientViewDto r)
+    private async Task DownloadSignedAsync()
     {
-        var apiBase = (Config["Stampd:Api:BaseUrl"] ?? "http://localhost:5070").TrimEnd('/');
-        // After completion, recipient.AccessUrl is null (returned that way from the
-        // server so the recipient can't re-open the signing page). Fall back to ANY
-        // recipient's URL by scanning the list — every completed request must have at
-        // least one signed recipient with an access token still resolvable from before
-        // signing. In practice, _detail.Recipients always carries the tokens because
-        // ToResponse computes the URL inline.
-        var anyRecipient = _detail?.Recipients.FirstOrDefault(rr => !string.IsNullOrWhiteSpace(rr.AccessUrl));
-        var url = anyRecipient?.AccessUrl ?? r.AccessUrl;
-        if (string.IsNullOrWhiteSpace(url)) return "#";
+        _downloadError = null;
+        if (_detail?.SignedDocumentId is not { } documentId)
+        {
+            return;
+        }
 
-        var token = url.Split('/')[^1];
-        return $"{apiBase}/api/sign/{token}/signed-document";
+        var pdf = await Api.DownloadSignedDocumentAsync(_token, documentId, CancellationToken.None);
+        if (pdf is null)
+        {
+            _downloadError = "The signed PDF could not be downloaded.";
+            return;
+        }
+
+        await Downloader.SaveAsync($"signed-{_detail.Id:N}.pdf", "application/pdf", pdf, CancellationToken.None);
     }
 
     private string? ResolveRecipientName(Guid? recipientId)

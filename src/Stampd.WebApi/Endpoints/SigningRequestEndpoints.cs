@@ -119,9 +119,18 @@ internal static class SigningRequestEndpoints
             .FirstOrDefaultAsync(r => r.Id == id, ct)
             .ConfigureAwait(false);
 
-        return request is null
-            ? Results.NotFound()
-            : Results.Ok(ToResponse(request, http, emailOptions, CanSeeAccessUrls(request, actor)));
+        if (request is null)
+        {
+            return Results.NotFound();
+        }
+
+        var signedDocumentIds = await SignedDocumentIdsAsync(db, [request.Id], ct).ConfigureAwait(false);
+        return Results.Ok(ToResponse(
+            request,
+            http,
+            emailOptions,
+            CanSeeAccessUrls(request, actor),
+            signedDocumentIds.TryGetValue(request.Id, out var documentId) ? documentId : null));
     }
 
     /// <summary>
@@ -284,6 +293,11 @@ internal static class SigningRequestEndpoints
             .ToListAsync(ct)
             .ConfigureAwait(false);
 
+        var signedDocumentIds = await SignedDocumentIdsAsync(
+            db,
+            requests.Where(r => r.Status == SigningRequestStatus.Completed).Select(r => r.Id).ToList(),
+            ct).ConfigureAwait(false);
+
         // Project after materialization so the ToResponse helper (which composes URLs
         // through WorkflowEmailOptions and HttpContext) can do its job without query-tree
         // translation hassles.
@@ -297,6 +311,7 @@ internal static class SigningRequestEndpoints
             createdAtUtc = r.CreatedAtUtc,
             completedAtUtc = r.CompletedAtUtc,
             recipients = ToResponse(r, http, emailOptions, CanSeeAccessUrls(r, actor)).Recipients,
+            signedDocumentId = signedDocumentIds.TryGetValue(r.Id, out var documentId) ? documentId : (Guid?)null,
         }).ToList();
 
         // totalPages is at least 1 even for empty result sets, so UI math like
@@ -321,11 +336,38 @@ internal static class SigningRequestEndpoints
         => actor.IsAdmin
             || (actor.UserId is { Length: > 0 } userId && string.Equals(request.CreatedBy, userId, StringComparison.Ordinal));
 
+    /// <summary>
+    /// The newest signed document of each request. A request is sealed once, so there is
+    /// normally one record per completed request.
+    /// </summary>
+    private static async Task<Dictionary<Guid, Guid>> SignedDocumentIdsAsync(
+        StampdDbContext db,
+        List<Guid> requestIds,
+        CancellationToken ct)
+    {
+        if (requestIds.Count == 0)
+        {
+            return [];
+        }
+
+        var records = await db.SignedDocumentRecords
+            .Where(d => requestIds.Contains(d.SigningRequestId))
+            .OrderByDescending(d => d.SignedAtUtcEpochMs)
+            .Select(d => new { d.SigningRequestId, d.Id })
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        return records
+            .GroupBy(d => d.SigningRequestId)
+            .ToDictionary(g => g.Key, g => g.First().Id);
+    }
+
     private static SigningRequestResponse ToResponse(
         SigningRequest request,
         HttpContext http,
         WorkflowEmailOptions emailOptions,
-        bool includeAccessUrls)
+        bool includeAccessUrls,
+        Guid? signedDocumentId = null)
     {
         // When SigningUrlTemplate is configured (typical when a Blazor UI hosts the
         // recipient page on a different origin than the WebApi), use it. Otherwise fall
@@ -361,6 +403,7 @@ internal static class SigningRequestEndpoints
             request.CreatedAtUtc,
             request.SentAtUtc,
             request.CompletedAtUtc,
-            recipients);
+            recipients,
+            signedDocumentId);
     }
 }

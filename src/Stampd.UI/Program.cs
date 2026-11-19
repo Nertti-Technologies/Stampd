@@ -50,6 +50,7 @@ builder.Services.AddHttpClient<StampdApiClient>(client => client.BaseAddress = n
 // they have" for Blazor pages. Lives outside the Dev-only block so non-Dev pages get
 // a working "Not signed in" surface that returns false for every IsInRole check.
 builder.Services.AddScoped<CurrentUserService>();
+builder.Services.AddScoped<FileDownloader>();
 
 if (builder.Environment.IsDevelopment())
 {

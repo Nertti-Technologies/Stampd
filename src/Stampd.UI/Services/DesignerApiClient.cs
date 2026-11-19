@@ -399,24 +399,37 @@ public sealed class DesignerApiClient
     }
 
     /// <summary>
-    /// v2.3 #232 — composes the absolute URL for the audit CSV export. The browser
-    /// hits this URL directly through a download anchor so the CSV streams straight
-    /// to disk without round-tripping through Blazor. Filters are encoded as query
-    /// params: <paramref name="days"/> becomes <c>from=&lt;now-days&gt;</c>, plus
-    /// optional event-type and actor-user-id filters.
+    /// Downloads a sealed PDF from <c>/api/signed-documents/{id}/download</c> with the
+    /// caller's credentials. Returns null when the API refuses.
     /// </summary>
-    public string BuildAuditExportUrl(int? days, string? eventType, string? actorUserId)
+    public async Task<byte[]?> DownloadSignedDocumentAsync(string bearerToken, Guid signedDocumentId, CancellationToken ct)
     {
-        var qs = new List<string>();
-        if (days is > 0)
-        {
-            var from = DateTimeOffset.UtcNow.AddDays(-days.Value);
-            qs.Add($"from={Uri.EscapeDataString(from.ToString("O"))}");
-        }
-        if (!string.IsNullOrWhiteSpace(eventType)) qs.Add($"eventType={Uri.EscapeDataString(eventType)}");
-        if (!string.IsNullOrWhiteSpace(actorUserId)) qs.Add($"actorUserId={Uri.EscapeDataString(actorUserId)}");
-        var query = qs.Count > 0 ? "?" + string.Join("&", qs) : string.Empty;
-        var baseUrl = _http.BaseAddress is null ? string.Empty : _http.BaseAddress.ToString().TrimEnd('/');
-        return $"{baseUrl}/api/admin/audit/export{query}";
+        using var req = new HttpRequestMessage(HttpMethod.Get, $"/api/signed-documents/{signedDocumentId}/download");
+        ApplyBearer(req, bearerToken);
+
+        using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
+        return resp.IsSuccessStatusCode
+            ? await resp.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false)
+            : null;
+    }
+
+    /// <summary>
+    /// v2.3 #232 — downloads the audit CSV export. Fetched here rather than through a
+    /// download link because the endpoint needs the bearer token, which a browser
+    /// navigation cannot send. <paramref name="days"/> becomes <c>from=&lt;now-days&gt;</c>.
+    /// Returns null when the API refuses.
+    /// </summary>
+    public async Task<byte[]?> DownloadAuditExportAsync(string bearerToken, int? days, CancellationToken ct)
+    {
+        var query = days is > 0
+            ? "?from=" + Uri.EscapeDataString(DateTimeOffset.UtcNow.AddDays(-days.Value).ToString("O"))
+            : string.Empty;
+        using var req = new HttpRequestMessage(HttpMethod.Get, $"/api/admin/audit/export{query}");
+        ApplyBearer(req, bearerToken);
+
+        using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
+        return resp.IsSuccessStatusCode
+            ? await resp.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false)
+            : null;
     }
 }
