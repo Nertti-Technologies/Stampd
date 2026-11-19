@@ -1,4 +1,4 @@
-# Migrating Stampd v3.3.x → v3.4.0 (unreleased)
+# Migrating Stampd v3.3.x → v3.4.0
 
 v3.4.0 closes four security gaps in identity verification and template editing. Apply the V20 migration. No public package API is removed, but three behaviours change on purpose; review them below.
 

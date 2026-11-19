@@ -39,6 +39,11 @@
       effective package version becomes 1.3.0-preview.1.
     -->
     <!--
+      v3.4.0: identity-check codes verify only the recipient they were issued to (V20
+      migration); OTP attempt limits hold under parallel requests and lockouts count
+      towards the initiate limit; mock SMS/KBA providers refuse to start outside
+      Development; template roles and fields can't change under in-flight requests.
+      See MIGRATION.md.
       v3.3.0: the signed-document record names the sealing provider, the signing key's
       thumbprint, the timestamp authority and the PAdES level actually reached
       (SignedDocument.AchievedLevel); signing-request responses carry signedDocumentId;
@@ -58,7 +63,7 @@
       v3.0.0 shipped tenant-isolated admin scopes, OIDC relay for external IdPs, SAML2 SP
       scaffolding and industry compliance bundles. Rules engine moved to v3.1 candidates.
     -->
-    <Version>3.3.0</Version>
+    <Version>3.4.0</Version>
 
     <Product>Stampd</Product>
     <Authors>Suresh Subramanian and Stampd contributors</Authors>
