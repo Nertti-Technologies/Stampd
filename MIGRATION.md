@@ -1,3 +1,35 @@
+# Migrating Stampd v3.2.x → v3.3.0 (unreleased)
+
+v3.3.0 makes the signed-document record accurate, fixes the admin downloads and makes the admin exports and analytics work on SQLite. Apply the V19 migration. No public package API is removed.
+
+## TL;DR
+
+1. Apply the V19 migration on every database provider. It adds `AuditEvents.OccurredAtUtcEpochMs`, `OtpChallenges.CreatedAtUtcEpochMs` and `WebhookDeliveries.CreatedAtUtcEpochMs`, fills them from the existing timestamps and indexes them. The fill is one `UPDATE` per table.
+2. If you implement `IStampdEngine` yourself, set `SignedDocument.AchievedLevel`. Until you do, records show B-B.
+
+## Changes
+
+### 1. The signed-document record states what sealed the document
+
+- `SealingProviderName` is the registered provider's `Name`, and `SealingKeyIdentifier` is the SHA-256 thumbprint of the signing certificate. Before 3.3 they were always `LocalCertificate` and `spike-signer`.
+- `PAdESLevel` is the level the engine reached. It can be lower than `Stampd:Pades:TargetLevel`: B-T needs a timestamp authority, and B-LT/B-LTA need revocation responses (a DSS with certificates only is not B-LT). Before 3.3 it was always B-T.
+- `TimestampAuthorityUrl` holds the timestamp authority's name when the level is B-T or higher. Before 3.3 it was never set.
+- New on `Stampd.Core.SignedDocument`: `AchievedLevel`, an init-only property. Engines that don't set it report `BB`.
+- Existing records keep their stored values.
+
+### 2. Signing-request responses carry `signedDocumentId`
+
+- `GET /api/signing-requests/{id}` and each item of `GET /api/signing-requests` include `signedDocumentId` once the request is Completed, and `null` before. Download the PDF from `GET /api/signed-documents/{id}/download`.
+- The UI's "Download PDF" and the request list's download button use this with the signed-in user's credentials. They no longer borrow a recipient's signing link.
+
+### 3. Admin downloads and analytics
+
+- The admin dashboard's audit CSV buttons now send the user's credentials. Before 3.3 they were plain links, and the API refused them.
+- On SQLite, `GET /api/admin/audit/export`, `GET /api/admin/analytics/identity-verification`, `GET /api/admin/analytics/webhooks-health`, `GET /api/webhooks` and `GET /api/signing-requests/{id}/audit` returned 500. They now work. Postgres and SQL Server were not affected.
+- CSV export: a cell that starts with `=`, `+`, `-`, `@`, tab or carriage return is written with a leading `'`, so spreadsheet apps show it as text instead of running it as a formula.
+
+---
+
 # Migrating Stampd v3.1.x → v3.2.0
 
 v3.2.0 fixes signing-request lifecycle and delivery defects. Apply the V18 migration. Several fixes change behaviour that integrations may have relied on, so review the changes below.
