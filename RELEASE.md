@@ -40,17 +40,18 @@ For pre-releases, set `<VersionSuffix>preview.1</VersionSuffix>` (or `rc.1`, `be
 
 ## One-time setup (do this once per maintainer)
 
-### 1. nuget.org account + API key
+### 1. nuget.org Trusted Publishing
 
-1. Sign in at <https://www.nuget.org> (Microsoft account / GitHub).
-2. Verify the account owns (or is a co-owner of) `Stampd.Core` — if this is the first release, the API key creates the package and the signed-in account becomes its owner.
-3. Generate an API key:
-   - Click your username → **API Keys** → **Create**.
-   - Key Name: `stampd-release-ci`.
-   - Scope: **Push** + **Push new packages and package versions**.
-   - Glob Pattern: `Stampd.*`.
-   - Expiration: 365 days (max).
-   - Copy the key. **You can't view it again.**
+nuget.org stopped accepting long-lived API keys on 2026-11-01, so the release workflow signs in with a short-lived token through Trusted Publishing.
+
+1. The `Stampd.*` packages are owned by the `Nerttiyana-Technologies` nuget.org organisation.
+2. On nuget.org, that organisation has a Trusted Publishing policy with these settings:
+   - Repository Owner: `Nertti-Technologies`
+   - Repository: `Stampd`
+   - Workflow File: `release.yml`
+   - Package pattern: `Stampd.*`
+3. The repository secret `NUGET_USER` holds the nuget.org profile name of the account that created the policy.
+4. No API key is stored anywhere. `release.yml` requests `id-token: write` and exchanges the GitHub OIDC token with `NuGet/login` for a temporary key.
 
 ## Cutting a release
 
@@ -96,7 +97,9 @@ The tag push triggers `.github/workflows/release.yml`. The workflow:
 3. `dotnet restore` / `build` / `test` (engine regression suite must pass).
 4. **Verifies the tag matches `Directory.Build.props` `<Version>`.** If they disagree the job fails — protects against a mis-tagged push silently shipping the wrong number.
 5. `dotnet pack`.
-6. `dotnet nuget push './artifacts/*.nupkg' --api-key $NUGET_API_KEY --source nuget.org --skip-duplicate`.
+6. Signs in to nuget.org with `NuGet/login` (Trusted Publishing), then runs `dotnet nuget push './artifacts/*.nupkg' --source nuget.org --skip-duplicate` with the temporary key.
+
+To publish an existing tag again, for example after a failed push, run the workflow manually (**Actions → Release → Run workflow**). Enter the tag (for example `v3.1.0`) and set `dry_run` to `false`; it defaults to `true`, which packs without publishing. Steps already done are skipped.
 
 
 ### 4. Smoke-test the published packages
