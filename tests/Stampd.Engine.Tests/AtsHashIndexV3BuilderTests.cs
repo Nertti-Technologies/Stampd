@@ -111,10 +111,10 @@ public sealed class AtsHashIndexV3BuilderTests
     }
 
     [Fact]
-    public void ComputeImprint_IsDeterministicForSameInputs()
+    public void BuildImprintInput_ConcatenatesFieldsInSpecOrderWithoutHashing()
     {
-        // The imprint is what gets handed to the TSA — same inputs must always
-        // produce the same hash, otherwise verifiers can't re-derive it.
+        // The input is handed to the TSA, which hashes it once. Hashing here as well
+        // would make the TST commit to H(H(input)), which verifiers can't re-derive.
         var eContentType = Bytes(0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, 0x01);
         var eContent = Bytes(0xDE, 0xAD, 0xBE, 0xEF);
         var atsAttribute = Bytes(0x30, 0x01, 0x00);
@@ -126,17 +126,20 @@ public sealed class AtsHashIndexV3BuilderTests
             SignatureAlgorithmDer: Bytes(0xA3),
             SignatureDer: Bytes(0xA4));
 
-        var first = AtsHashIndexV3Builder.ComputeImprint(
-            eContentType, eContent, [bundle], atsAttribute, HashAlgorithmName.SHA256);
-        var second = AtsHashIndexV3Builder.ComputeImprint(
-            eContentType, eContent, [bundle], atsAttribute, HashAlgorithmName.SHA256);
+        var input = AtsHashIndexV3Builder.BuildImprintInput(
+            eContentType, eContent, [bundle], atsAttribute);
 
-        Assert.Equal(first, second);
-        Assert.Equal(32, first.Length); // SHA-256 output
+        byte[] expected =
+        [
+            .. eContentType, .. eContent,
+            0xA0, 0xA1, 0xA2, 0xA3, 0xA4,
+            .. atsAttribute,
+        ];
+        Assert.Equal(expected, input);
     }
 
     [Fact]
-    public void ComputeImprint_IncludesEContentTypeInTheHash()
+    public void BuildImprintInput_IncludesEContentTypeInTheInput()
     {
         // Sensitivity test: changing eContentType while holding everything else
         // constant must produce a different imprint, otherwise we'd accept a
@@ -149,16 +152,16 @@ public sealed class AtsHashIndexV3BuilderTests
             SignatureAlgorithmDer: Bytes(),
             SignatureDer: Bytes());
 
-        var a = AtsHashIndexV3Builder.ComputeImprint(
-            Bytes(0x01), null, [bundle], atsAttribute, HashAlgorithmName.SHA256);
-        var b = AtsHashIndexV3Builder.ComputeImprint(
-            Bytes(0x02), null, [bundle], atsAttribute, HashAlgorithmName.SHA256);
+        var a = AtsHashIndexV3Builder.BuildImprintInput(
+            Bytes(0x01), null, [bundle], atsAttribute);
+        var b = AtsHashIndexV3Builder.BuildImprintInput(
+            Bytes(0x02), null, [bundle], atsAttribute);
 
         Assert.NotEqual(a, b);
     }
 
     [Fact]
-    public void ComputeImprint_IncludesAtsHashIndexAttributeInTheHash()
+    public void BuildImprintInput_IncludesAtsHashIndexAttributeInTheInput()
     {
         // The whole point of the hash index is that it gets baked into the TST
         // imprint. Verify that swapping the attribute changes the output.
@@ -171,10 +174,10 @@ public sealed class AtsHashIndexV3BuilderTests
 
         var eContentType = Bytes(0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, 0x01);
 
-        var a = AtsHashIndexV3Builder.ComputeImprint(
-            eContentType, null, [bundle], Bytes(0xAA), HashAlgorithmName.SHA256);
-        var b = AtsHashIndexV3Builder.ComputeImprint(
-            eContentType, null, [bundle], Bytes(0xBB), HashAlgorithmName.SHA256);
+        var a = AtsHashIndexV3Builder.BuildImprintInput(
+            eContentType, null, [bundle], Bytes(0xAA));
+        var b = AtsHashIndexV3Builder.BuildImprintInput(
+            eContentType, null, [bundle], Bytes(0xBB));
 
         Assert.NotEqual(a, b);
     }

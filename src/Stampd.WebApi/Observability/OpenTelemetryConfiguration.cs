@@ -2,6 +2,8 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
+using Stampd.Observability;
+
 namespace Stampd.WebApi.Observability;
 
 internal static class OpenTelemetryConfiguration
@@ -36,6 +38,15 @@ internal static class OpenTelemetryConfiguration
                         // Drop health-check noise from traces.
                         options.Filter = context =>
                             !context.Request.Path.StartsWithSegments("/health");
+
+                        // url.path carries signing-link access tokens; redact before export.
+                        options.EnrichWithHttpRequest = (activity, _) =>
+                        {
+                            if (activity.GetTagItem("url.path") is string path)
+                            {
+                                activity.SetTag("url.path", AccessTokenPathRedactionEnricher.Redact(path));
+                            }
+                        };
                     })
                     .AddHttpClientInstrumentation()
                     .AddEntityFrameworkCoreInstrumentation();

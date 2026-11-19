@@ -28,6 +28,8 @@ internal static class BinarySignEndpoint
     /// </summary>
     public static IEndpointRouteBuilder MapBinarySign(this IEndpointRouteBuilder builder)
     {
+        // Literal route under the signing-link prefix: listed in
+        // AccessTokenPathRedactionEnricher.NonTokenSegments so logs keep its name.
         builder.MapPost("/api/sign/binary", HandleAsync)
             .WithName("SignBinary")
             .WithTags("Sign")

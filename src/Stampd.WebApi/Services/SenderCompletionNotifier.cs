@@ -66,9 +66,8 @@ public sealed class SenderCompletionNotifier
         if (!TryParseMailbox(request.CreatedBy, out var senderAddress))
         {
             _logger.LogDebug(
-                "Sender completion email skipped for request {RequestId}: CreatedBy '{CreatedBy}' is not a routable mailbox.",
-                request.Id,
-                request.CreatedBy);
+                "Sender completion email skipped for request {RequestId}: CreatedBy is not a routable mailbox.",
+                request.Id);
             return;
         }
 
@@ -90,9 +89,8 @@ public sealed class SenderCompletionNotifier
                 ct).ConfigureAwait(false);
 
             _logger.LogInformation(
-                "Sender completion email dispatched for request {RequestId} to {SenderEmail}.",
-                request.Id,
-                senderAddress);
+                "Sender completion email dispatched for request {RequestId}.",
+                request.Id);
         }
         catch (OperationCanceledException)
         {
@@ -105,9 +103,8 @@ public sealed class SenderCompletionNotifier
             // dashboard.
             _logger.LogWarning(
                 ex,
-                "Sender completion email failed for request {RequestId} → {SenderEmail}; document is still available via the API.",
-                request.Id,
-                senderAddress);
+                "Sender completion email failed for request {RequestId}; document is still available via the API.",
+                request.Id);
         }
     }
 

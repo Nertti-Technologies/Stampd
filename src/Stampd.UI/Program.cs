@@ -4,6 +4,7 @@ using Microsoft.FluentUI.AspNetCore.Components;
 
 using Serilog;
 
+using Stampd.Observability;
 using Stampd.UI.Components;
 using Stampd.UI.Services;
 
@@ -11,6 +12,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
+    .Enrich.With<AccessTokenPathRedactionEnricher>()
     .WriteTo.Console(formatProvider: CultureInfo.InvariantCulture)
     .CreateLogger();
 builder.Host.UseSerilog();

@@ -104,6 +104,54 @@ public sealed class PadesBLtaTests
         Assert.Equal(1, index.UnsignedAttrValuesCount);
     }
 
+    /// <summary>
+    /// The archive TST's messageImprint must be a single hash of the archive input
+    /// (eContentType || detached content || signer fields || ats-hash-index-v3), rebuilt
+    /// here from the finished signature the way a verifier would. Hashing the input
+    /// before handing it to the TSA would make the TST commit to H(H(input)) instead.
+    /// </summary>
+    [Fact]
+    public async Task Engine_WithBltaLevel_ArchiveImprintIsSingleHashOfArchiveInput()
+    {
+        PlatformFontResolver.Register();
+
+        var sourcePdf = SampleAssetFactory.BuildSourcePdf();
+        using var signerCert = SelfSignedCertificateFactory.Create(
+            subjectCommonName: "Stampd B-LTA Imprint Test Signer",
+            validity: TimeSpan.FromDays(30));
+
+        var engine = new PdfSharpStampdEngine(
+            new LocalCertificateSealingProvider(signerCert),
+            timestampAuthority: new InProcessStubTsaProvider(),
+            revocationProvider: null);
+
+        var signedDocument = await engine.SignAsync(
+            BuildRequest(sourcePdf, PAdESLevel.BLTA),
+            TestContext.Current.CancellationToken);
+        var inspector = SignedPdfInspector.Parse(signedDocument.SignedPdf.ToArray());
+
+        var signerInfo = inspector.FirstSigner.SignerInfo;
+        var hashIndexAttribute = FindUnsignedAttribute(inspector.FirstSigner, AtsHashIndexV3Oid);
+        var archiveAttribute = FindUnsignedAttribute(inspector.FirstSigner, ArchiveTimestampV3Oid);
+
+        byte[] archiveInput =
+        [
+            .. PkcsObjectIdentifiers.Data.GetEncoded(Asn1Encodable.Der),
+            .. inspector.ByteRangeBytes(),
+            .. signerInfo.SignerID.GetEncoded(Asn1Encodable.Der),
+            .. signerInfo.DigestAlgorithm.GetEncoded(Asn1Encodable.Der),
+            .. signerInfo.SignedAttrs.GetEncoded(Asn1Encodable.Der),
+            .. signerInfo.SignatureAlgorithm.GetEncoded(Asn1Encodable.Der),
+            .. signerInfo.Signature.GetEncoded(Asn1Encodable.Der),
+            .. hashIndexAttribute.GetEncoded(Asn1Encodable.Der),
+        ];
+
+        var archiveToken = new TimeStampToken(new CmsSignedData(
+            Org.BouncyCastle.Asn1.Cms.ContentInfo.GetInstance(archiveAttribute.AttrValues[0])));
+
+        Assert.Equal(SHA256.HashData(archiveInput), archiveToken.TimeStampInfo.GetMessageImprintDigest());
+    }
+
     [Fact]
     public async Task Engine_WithBltLevel_DoesNotEmbedArchiveAttribute()
     {
@@ -154,6 +202,14 @@ public sealed class PadesBLtaTests
         Sealing = new SealingOptions { TargetLevel = level },
         Metadata = new SignatureMetadata(Reason: "regression test"),
     };
+
+    private static Org.BouncyCastle.Asn1.Cms.Attribute FindUnsignedAttribute(SignerInformation signer, string oid)
+    {
+        var unsigned = signer.UnsignedAttributes
+            ?? throw new InvalidOperationException("Signer has no unsigned attributes.");
+        return unsigned[new DerObjectIdentifier(oid)]
+            ?? throw new InvalidOperationException($"Unsigned attribute {oid} not found.");
+    }
 
     private static HashSet<string> CollectUnsignedAttributeOids(SignerInformation signer)
     {

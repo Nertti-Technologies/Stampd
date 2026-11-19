@@ -17,6 +17,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\Shared\Observability\AccessTokenPathRedactionEnricher.cs" Link="Observability\Shared\AccessTokenPathRedactionEnricher.cs" />
     <ProjectReference Include="..\Stampd.Core\Stampd.Core.csproj" />
     <ProjectReference Include="..\Stampd.Engine\Stampd.Engine.csproj" />
     <ProjectReference Include="..\Stampd.Crypto.LocalCertificate\Stampd.Crypto.LocalCertificate.csproj" />
