@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Stampd.Core.Entities;
 using Stampd.Infrastructure;
 using Stampd.WebApi.Models;
+using Stampd.WebApi.Auth;
 
 namespace Stampd.WebApi.Endpoints;
 
@@ -16,7 +17,8 @@ internal static class BulkSendEndpoints
         ArgumentNullException.ThrowIfNull(app);
 
         app.MapPost("/api/templates/{id:guid}/bulk-send", DispatchBulkSendAsync)
-            .WithName("BulkSendDispatch");
+            .WithName("BulkSendDispatch")
+            .RequireAuthorization(StampdPolicies.SenderOrAdmin);
 
         app.MapGet("/api/bulk-send/{id:guid}", GetBulkSendStatusAsync)
             .WithName("BulkSendStatus");

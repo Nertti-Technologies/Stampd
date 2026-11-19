@@ -118,12 +118,22 @@ else
     builder.Services.AddFileSystemDocumentStorage(storageRoot);
 }
 
-// Tenant context (header-based)
-var defaultTenantId = Guid.Parse(
-    builder.Configuration["Stampd:Tenancy:DefaultTenantId"] ?? "00000000-0000-0000-0000-000000000001");
+// Tenant context: TenantResolutionMiddleware picks the request's tenant from the
+// caller's token (see the pipeline below); HttpTenantContext serves it to the DbContext.
+builder.Services.AddOptions<TenancyOptions>()
+    .Bind(builder.Configuration.GetSection("Stampd:Tenancy"))
+    .Configure(options =>
+    {
+        if (string.Equals(builder.Configuration["Stampd:Auth:Mode"], "Oidc", StringComparison.OrdinalIgnoreCase))
+        {
+            options.TenantClaim = builder.Configuration["Stampd:Auth:Oidc:TenantClaim"] ?? TenancyOptions.DefaultTenantClaim;
+        }
+    })
+    .Validate(options => options.DefaultTenantId != Guid.Empty, "Stampd:Tenancy:DefaultTenantId must name a tenant.")
+    .ValidateOnStart();
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<ITenantContext>(sp =>
-    new HttpTenantContext(sp.GetRequiredService<IHttpContextAccessor>(), defaultTenantId));
+builder.Services.AddScoped<RequestTenant>();
+builder.Services.AddScoped<ITenantContext, HttpTenantContext>();
 
 // Sealing: LocalCertificate, Vault, or AzureKeyVault by config.
 var sealingProvider = builder.Configuration["Stampd:Sealing:Provider"] ?? "Local";
@@ -436,13 +446,17 @@ var authModeRaw = builder.Configuration["Stampd:Auth:Mode"];
 var isOidc = string.Equals(authModeRaw, "Oidc", StringComparison.OrdinalIgnoreCase);
 var isSaml2 = string.Equals(authModeRaw, "Saml2", StringComparison.OrdinalIgnoreCase);
 
-if (!isOidc && !isSaml2
-    && !builder.Environment.IsDevelopment()
-    && builder.Environment.EnvironmentName != "Testing")
+// Development authentication (the HS256 dev key and /api/auth/dev-token) exists only
+// where DevAuth.IsAllowed says so. Outside it, OIDC is the only mode: the SAML2 SP is a
+// scaffold that validates no assertions, so it can't authenticate anyone yet.
+var devAuthAllowed = DevAuth.IsAllowed(builder.Environment);
+if (!isOidc && !devAuthAllowed)
 {
-    throw new InvalidOperationException(
-        "Stampd:Auth:Mode=DevJwt is only allowed in Development. Set Stampd:Auth:Mode=Oidc " +
-        "(real-IdP OIDC validation) or Saml2 (SAML2 SP scaffold) for production deployments.");
+    throw new InvalidOperationException(isSaml2
+        ? "Stampd:Auth:Mode=Saml2 is only allowed in Development until the SAML2 SP validates " +
+          "assertions. Set Stampd:Auth:Mode=Oidc for production deployments."
+        : "Stampd:Auth:Mode=DevJwt is only allowed in Development. Set Stampd:Auth:Mode=Oidc " +
+          "(real-IdP OIDC validation) for production deployments.");
 }
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -509,12 +523,12 @@ builder.Services.AddAuthorizationBuilder()
         // tenant. The handler enforces both gates so existing role-aware code (UI
         // nav, dev JWT minter, etc.) doesn't need changes.
         .AddRequirements(new Stampd.WebApi.Auth.AdminScopeRequirement()))
-    .AddPolicy("SenderOrAdmin", p => p
+    .AddPolicy(StampdPolicies.SenderOrAdmin, p => p
         .RequireAuthenticatedUser()
         .RequireRole(
             Stampd.Core.Authorization.StampdRoles.Sender,
             Stampd.Core.Authorization.StampdRoles.Admin))
-    .AddPolicy("AuthenticatedAny", p => p
+    .AddPolicy(StampdPolicies.AuthenticatedAny, p => p
         .RequireAuthenticatedUser())
     .SetFallbackPolicy(new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
@@ -580,6 +594,9 @@ if (!app.Environment.IsEnvironment("Testing"))
 }
 
 app.UseAuthentication();
+// Between authentication and authorization: reads the principal, and
+// AdminScopeAuthorizationHandler checks scope against the tenant it chooses.
+app.UseMiddleware<TenantResolutionMiddleware>();
 app.UseAuthorization();
 app.UseRateLimiter();
 
@@ -605,7 +622,10 @@ app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.Health
 // authenticated by the per-recipient access token in the URL, not by JWT).
 var anonGroup = app.MapGroup("").AllowAnonymous();
 anonGroup.MapHealth();
-anonGroup.MapAuth();
+if (!isOidc && devAuthAllowed)
+{
+    anonGroup.MapAuth();
+}
 anonGroup.MapRecipientSigning();
 // Demo bootstrap — registers /api/demo/seed only in Development.
 anonGroup.MapDemo(app.Environment);
@@ -613,17 +633,15 @@ anonGroup.MapDemo(app.Environment);
 // Sign endpoints: rate-limited AND require auth. v2.0 — gate on SenderOrAdmin so
 // view-only users can't submit signatures.
 var signGroup = app.MapGroup("")
-    .RequireAuthorization("SenderOrAdmin")
+    .RequireAuthorization(StampdPolicies.SenderOrAdmin)
     .RequireRateLimiting("sign");
 signGroup.MapSign();
 signGroup.MapBinarySign();
 
-// Management endpoints: any authenticated user can read; write semantics get enforced
-// inside each endpoint handler as v2.0 layers in. The group-level policy is
-// AuthenticatedAny so ReadOnly users hit the same surface for listing/viewing — Slice D
-// will introduce per-action policy checks (void / regenerate / delete) inside the
-// handlers when bulk operations land.
-var managementGroup = app.MapGroup("").RequireAuthorization("AuthenticatedAny");
+// Management endpoints: the group lets any authenticated user (ReadOnly included) read.
+// Each route that creates, changes or deletes data adds StampdPolicies.SenderOrAdmin
+// where it is mapped; WriteRoutePolicyTests fails CI if a write route lacks it.
+var managementGroup = app.MapGroup("").RequireAuthorization(StampdPolicies.AuthenticatedAny);
 managementGroup.MapTemplates();
 managementGroup.MapSigningRequests();
 managementGroup.MapSignedDocuments();

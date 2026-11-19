@@ -9,10 +9,9 @@ namespace Stampd.WebApi.Models;
 /// <paramref name="SenderEmail"/> and <paramref name="SenderName"/> identify the human
 /// initiating the signing request (typically the authenticated dashboard user). When
 /// supplied, the sender receives a completion notification email once the last recipient
-/// signs (v1.3 #134). <paramref name="SenderEmail"/> is also persisted into
-/// <see cref="SigningRequest.CreatedBy"/> so the audit trail names the originator; when
-/// omitted, CreatedBy falls back to the legacy <c>"api"</c> sentinel and no completion
-/// email is sent.
+/// signs (v1.3 #134); when omitted, no completion email is sent. It is stored as
+/// <see cref="SigningRequest.NotifyEmail"/>. The request's owner
+/// (<see cref="SigningRequest.CreatedBy"/>) always comes from the caller's access token.
 /// </para>
 /// </remarks>
 public sealed record CreateSigningRequestBody(

@@ -15,7 +15,7 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "9.0.0");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.15");
 
             modelBuilder.Entity("Stampd.Core.Entities.AdminScope", b =>
                 {
@@ -35,15 +35,15 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("RevocationReason")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTimeOffset?>("RevokedAtUtc")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("RevokedByUserId")
                         .HasMaxLength(256)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("RevocationReason")
-                        .HasMaxLength(1024)
                         .HasColumnType("TEXT");
 
                     b.Property<Guid>("TenantId")
@@ -67,6 +67,14 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ActorRole")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ActorUserId")
+                        .HasMaxLength(256)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("DocumentHashAtEvent")
@@ -109,15 +117,6 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
                     b.Property<string>("UserAgent")
                         .HasMaxLength(512)
                         .HasColumnType("TEXT");
-                    b.Property<string>("ActorRole")
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ActorUserId")
-                        .HasMaxLength(256)
-                        .HasColumnType("TEXT");
-
-
 
                     b.HasKey("Id");
 
@@ -128,8 +127,8 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
                     b.HasIndex("TenantId", "EventType");
 
                     b.HasIndex("TenantId", "OccurredAtUtc");
-                    b.HasIndex("TenantId", "ActorUserId", "OccurredAtUtc");
 
+                    b.HasIndex("TenantId", "ActorUserId", "OccurredAtUtc");
 
                     b.ToTable("AuditEvents", (string)null);
                 });
@@ -189,9 +188,9 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId", "Status");
-
                     b.HasIndex("Status", "CreatedAtUtcEpochMs");
+
+                    b.HasIndex("TenantId", "Status");
 
                     b.ToTable("BulkSendJobs", (string)null);
                 });
@@ -247,11 +246,11 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("TenantId", "CreatedAtUtcEpochMs");
+
                     b.HasIndex("TenantId", "IsArchived");
 
                     b.HasIndex("TenantId", "Name");
-
-                    b.HasIndex("TenantId", "CreatedAtUtcEpochMs");
 
                     b.ToTable("DocumentTemplates", (string)null);
                 });
@@ -424,6 +423,10 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
 
                     b.Property<string>("Message")
                         .HasMaxLength(4096)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NotifyEmail")
+                        .HasMaxLength(320)
                         .HasColumnType("TEXT");
 
                     b.Property<DateTimeOffset?>("SentAtUtc")

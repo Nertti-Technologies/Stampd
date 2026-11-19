@@ -77,11 +77,11 @@ public sealed class SigningWorkflowService
         var rolesByName = template.Roles.ToDictionary(r => r.Name, StringComparer.OrdinalIgnoreCase);
         var now = DateTimeOffset.UtcNow;
 
-        // CreatedBy doubles as the sender's contact address for the v1.3 completion
-        // notification email. Until real auth lands, we accept SenderEmail off the request
-        // body; the legacy "api" sentinel preserves behavior for pre-1.3 API callers and
-        // suppresses the completion email (the notifier checks for a parseable mailbox).
+        // CreatedBy is the signed-in caller (the token's subject); it decides who may see
+        // recipient access URLs. Work without a signed-in user (bulk send) records "api".
+        // SenderEmail only says where the completion notification goes.
         var senderEmail = body.SenderEmail?.Trim();
+        var createdBy = _actorContext is { IsAuthenticated: true, UserId: { Length: > 0 } userId } ? userId : "api";
         var request = new SigningRequest
         {
             DocumentTemplateId = template.Id,
@@ -90,7 +90,8 @@ public sealed class SigningWorkflowService
             ExpiresAtUtc = body.ExpiresAtUtc,
             Status = SigningRequestStatus.Sent,
             SentAtUtc = now,
-            CreatedBy = string.IsNullOrEmpty(senderEmail) ? "api" : senderEmail,
+            CreatedBy = createdBy,
+            NotifyEmail = string.IsNullOrEmpty(senderEmail) ? null : senderEmail,
         };
 
         foreach (var assignment in body.Recipients)

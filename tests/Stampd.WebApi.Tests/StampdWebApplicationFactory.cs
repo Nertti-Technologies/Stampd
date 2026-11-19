@@ -56,12 +56,18 @@ public class StampdWebApplicationFactory : WebApplicationFactory<Program>
     {
         builder.UseEnvironment(EnvironmentName());
 
-        // Program reads the log directory while the WebApplicationBuilder is still being
-        // configured, before ConfigureAppConfiguration sources apply, so it has to be a
-        // host setting. Without this, test hosts log to the developer's ~/.stampd/logs.
-        var logDirectory = ExtraConfig()?.GetValueOrDefault("Stampd:Logging:Directory")
-            ?? Path.Combine(_isolatedRoot, "logs");
-        builder.UseSetting("Stampd:Logging:Directory", logDirectory);
+        // Program.cs reads some settings (auth mode, log directory) while the
+        // WebApplicationBuilder is still being configured, before ConfigureAppConfiguration
+        // sources apply. Host settings are visible at that point, so the isolated log
+        // directory and every subclass override are applied here as well. Without this,
+        // test hosts log to the developer's ~/.stampd/logs, and a test setting
+        // Stampd:Auth:Mode silently runs with the default mode. Overrides come last, so
+        // they win.
+        builder.UseSetting("Stampd:Logging:Directory", Path.Combine(_isolatedRoot, "logs"));
+        foreach (var (key, value) in ExtraConfig() ?? new Dictionary<string, string?>())
+        {
+            builder.UseSetting(key, value);
+        }
 
         builder.ConfigureAppConfiguration((_, config) =>
         {

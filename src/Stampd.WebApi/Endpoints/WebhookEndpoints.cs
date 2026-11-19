@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 using Stampd.Core.Entities;
 using Stampd.Infrastructure;
+using Stampd.WebApi.Auth;
 
 namespace Stampd.WebApi.Endpoints;
 
@@ -15,8 +16,10 @@ internal static class WebhookEndpoints
         ArgumentNullException.ThrowIfNull(app);
 
         app.MapGet("/api/webhooks", ListAsync).WithName("WebhookList");
-        app.MapPost("/api/webhooks", CreateAsync).WithName("WebhookCreate");
-        app.MapDelete("/api/webhooks/{id:guid}", DeleteAsync).WithName("WebhookDelete");
+        app.MapPost("/api/webhooks", CreateAsync).WithName("WebhookCreate")
+            .RequireAuthorization(StampdPolicies.SenderOrAdmin);
+        app.MapDelete("/api/webhooks/{id:guid}", DeleteAsync).WithName("WebhookDelete")
+            .RequireAuthorization(StampdPolicies.SenderOrAdmin);
 
         return app;
     }

@@ -1,3 +1,51 @@
+# Migrating Stampd v3.0.x → v3.1.0
+
+v3.1.0 changes how the WebApi decides a request's tenant, which roles may change data, and who receives recipient access URLs. No public package API is removed. Apply the V17 migration and review the changes below before upgrading.
+
+## TL;DR
+
+1. Apply the V17 migration on every database provider (adds the nullable `SigningRequests.NotifyEmail` column).
+2. Make sure access tokens carry the caller's tenant in the `tenant_id` claim (or the claim named by `Stampd:Auth:Oidc:TenantClaim`).
+3. If you run more than one tenant, set `Stampd:Tenancy:Mode=Multi`.
+4. Give users who create or change data the `Sender` or `Admin` role.
+
+## Behaviour changes
+
+### 1. The tenant comes from the access token
+
+- The request's tenant is the token's tenant claim.
+- `X-Stampd-Tenant` may still be sent:
+  - If it names the token's own tenant, it is accepted.
+  - If it names a different tenant, it is honoured only for an `Admin` holding an `AdminScope` for that tenant, or a user listed in `Stampd:Auth:SuperAdminUserIds`. Anyone else gets **403**.
+- A header that is not a tenant id, or is the all-zero id, gets **400**.
+- **Tokens without a tenant claim:**
+  - `Stampd:Tenancy:Mode=Single` (the default) runs them in `Stampd:Tenancy:DefaultTenantId`. That is the previous behaviour for one-tenant installs.
+  - `Multi` rejects them with **403**.
+- Anonymous routes (recipient signing behind its access token) keep using the header, falling back to the default tenant.
+
+### 2. Development authentication is limited to Development
+
+- `/api/auth/dev-token` and the HS256 development signing key now exist only in the `Development` and `Testing` environments.
+- `Stampd:Auth:Mode=Saml2` now fails at startup outside Development, because the SAML2 SP does not validate assertions yet. Use `Stampd:Auth:Mode=Oidc` in production.
+
+### 3. Changing data requires the `Sender` or `Admin` role
+
+- These routes now return **403** for `ReadOnly` users:
+  - creating, updating or immediately signing a template;
+  - creating a signing request;
+  - bulk send;
+  - creating or deleting a webhook.
+- Reads are unchanged.
+
+### 4. Request ownership and access URLs
+
+- `SigningRequest.CreatedBy` and `DocumentTemplate.CreatedBy` are now the caller's user id (the token's subject). Work without a signed-in user, such as bulk send, records `api`.
+- `SenderEmail` on `POST /api/signing-requests` now only sets where the completion email goes. It is stored in the new `NotifyEmail` column. Requests created before 3.1 keep sending to the address in `CreatedBy`.
+- Recipient `accessUrl` values in signing-request responses are returned only to the request's owner and to Admins. Other callers receive `null`.
+- The `senderEmail` filter on `GET /api/signing-requests` matches either `CreatedBy` or `NotifyEmail`.
+
+---
+
 # Migrating Stampd v2.x → v3.0.0
 
 v3.0 is a MAJOR release. This document covers the upgrade path for adopters running v2.3.0 stable.

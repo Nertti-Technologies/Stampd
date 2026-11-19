@@ -17,7 +17,7 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.8")
+                .HasAnnotation("ProductVersion", "10.0.15")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -40,16 +40,16 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
+                    b.Property<string>("RevocationReason")
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
                     b.Property<DateTimeOffset?>("RevokedAtUtc")
                         .HasColumnType("datetimeoffset");
 
                     b.Property<string>("RevokedByUserId")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
-
-                    b.Property<string>("RevocationReason")
-                        .HasMaxLength(1024)
-                        .HasColumnType("nvarchar(1024)");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
@@ -73,6 +73,14 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ActorRole")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("ActorUserId")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
 
                     b.Property<string>("DocumentHashAtEvent")
                         .HasMaxLength(64)
@@ -114,15 +122,6 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
                     b.Property<string>("UserAgent")
                         .HasMaxLength(512)
                         .HasColumnType("nvarchar(512)");
-                    b.Property<string>("ActorRole")
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<string>("ActorUserId")
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-
 
                     b.HasKey("Id");
 
@@ -133,8 +132,8 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
                     b.HasIndex("TenantId", "EventType");
 
                     b.HasIndex("TenantId", "OccurredAtUtc");
-                    b.HasIndex("TenantId", "ActorUserId", "OccurredAtUtc");
 
+                    b.HasIndex("TenantId", "ActorUserId", "OccurredAtUtc");
 
                     b.ToTable("AuditEvents", (string)null);
                 });
@@ -194,9 +193,9 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId", "Status");
-
                     b.HasIndex("Status", "CreatedAtUtcEpochMs");
+
+                    b.HasIndex("TenantId", "Status");
 
                     b.ToTable("BulkSendJobs", (string)null);
                 });
@@ -252,11 +251,11 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("TenantId", "CreatedAtUtcEpochMs");
+
                     b.HasIndex("TenantId", "IsArchived");
 
                     b.HasIndex("TenantId", "Name");
-
-                    b.HasIndex("TenantId", "CreatedAtUtcEpochMs");
 
                     b.ToTable("DocumentTemplates", (string)null);
                 });
@@ -430,6 +429,10 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
                     b.Property<string>("Message")
                         .HasMaxLength(4096)
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("NotifyEmail")
+                        .HasMaxLength(320)
+                        .HasColumnType("nvarchar(320)");
 
                     b.Property<DateTimeOffset?>("SentAtUtc")
                         .HasColumnType("datetimeoffset");
