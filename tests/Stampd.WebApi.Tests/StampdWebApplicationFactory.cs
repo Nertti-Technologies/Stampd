@@ -52,18 +52,46 @@ public class StampdWebApplicationFactory : WebApplicationFactory<Program>
     /// </summary>
     protected virtual string EnvironmentName() => "Testing";
 
+    private Dictionary<string, string?> BaselineConfig() => new()
+    {
+        // Force LocalCertificate sealing — no Vault dependency in tests
+        ["Stampd:Sealing:Provider"] = "Local",
+        ["Stampd:SigningCertificate:Pkcs12Path"] = Path.Combine(_isolatedRoot, "test-signer.pfx"),
+        ["Stampd:SigningCertificate:Password"] = "stampd-test",
+
+        // No TSA — tests stay fully offline
+        ["Stampd:Tsa:Enabled"] = "false",
+
+        // Isolated storage and DB
+        ["Stampd:Storage:FileSystemRoot"] = Path.Combine(_isolatedRoot, "documents"),
+        ["Stampd:Database:SqlitePath"] = Path.Combine(_isolatedRoot, "stampd-tests.db"),
+
+        // Deterministic JWT signing key for token issuance + validation
+        ["Stampd:Auth:Jwt:SigningKey"] = "stampd-test-signing-key-do-not-use-in-prod-32+chars",
+        ["Stampd:Auth:Jwt:Issuer"] = "stampd-test",
+        ["Stampd:Auth:Jwt:Audience"] = "stampd-test-api",
+        ["Stampd:Auth:Jwt:EnableDevTokenEndpoint"] = "true",
+
+        // Log to /dev/null during tests
+        ["Stampd:Logging:Directory"] = Path.Combine(_isolatedRoot, "logs"),
+    };
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(EnvironmentName());
 
-        // Program.cs reads some settings (auth mode, log directory) while the
-        // WebApplicationBuilder is still being configured, before ConfigureAppConfiguration
-        // sources apply. Host settings are visible at that point, so the isolated log
-        // directory and every subclass override are applied here as well. Without this,
-        // test hosts log to the developer's ~/.stampd/logs, and a test setting
-        // Stampd:Auth:Mode silently runs with the default mode. Overrides come last, so
-        // they win.
-        builder.UseSetting("Stampd:Logging:Directory", Path.Combine(_isolatedRoot, "logs"));
+        // Program.cs reads many settings (signing certificate, TSA, storage root, auth mode,
+        // log directory) while the WebApplicationBuilder is still being configured, before
+        // ConfigureAppConfiguration sources apply. Host settings are visible at that point,
+        // so the baseline and every subclass override are applied here as well. Without
+        // this, test hosts sign with the developer's ~/.stampd certificate, write documents
+        // to ~/.stampd/documents, call the public TSA, and a test setting Stampd:Auth:Mode
+        // silently runs with the default mode. Overrides come last, so they win.
+        foreach (var (key, value) in BaselineConfig())
+        {
+            builder.UseSetting(key, value);
+        }
+
         foreach (var (key, value) in ExtraConfig() ?? new Dictionary<string, string?>())
         {
             builder.UseSetting(key, value);
@@ -71,29 +99,7 @@ public class StampdWebApplicationFactory : WebApplicationFactory<Program>
 
         builder.ConfigureAppConfiguration((_, config) =>
         {
-            config.AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                // Force LocalCertificate sealing — no Vault dependency in tests
-                ["Stampd:Sealing:Provider"] = "Local",
-                ["Stampd:SigningCertificate:Pkcs12Path"] = Path.Combine(_isolatedRoot, "test-signer.pfx"),
-                ["Stampd:SigningCertificate:Password"] = "stampd-test",
-
-                // No TSA — tests stay fully offline
-                ["Stampd:Tsa:Enabled"] = "false",
-
-                // Isolated storage and DB
-                ["Stampd:Storage:FileSystemRoot"] = Path.Combine(_isolatedRoot, "documents"),
-                ["Stampd:Database:SqlitePath"] = Path.Combine(_isolatedRoot, "stampd-tests.db"),
-
-                // Deterministic JWT signing key for token issuance + validation
-                ["Stampd:Auth:Jwt:SigningKey"] = "stampd-test-signing-key-do-not-use-in-prod-32+chars",
-                ["Stampd:Auth:Jwt:Issuer"] = "stampd-test",
-                ["Stampd:Auth:Jwt:Audience"] = "stampd-test-api",
-                ["Stampd:Auth:Jwt:EnableDevTokenEndpoint"] = "true",
-
-                // Log to /dev/null during tests
-                ["Stampd:Logging:Directory"] = Path.Combine(_isolatedRoot, "logs"),
-            });
+            config.AddInMemoryCollection(BaselineConfig());
 
             // v3.0 alpha.1 — subclasses can layer additional overrides on top of
             // the baseline above. Added last so subclass keys take precedence.
