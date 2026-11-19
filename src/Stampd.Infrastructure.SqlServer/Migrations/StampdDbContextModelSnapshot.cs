@@ -308,6 +308,10 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
+                    b.Property<string>("PendingVerificationId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
                     b.Property<Guid?>("RoleId")
                         .HasColumnType("uniqueidentifier");
 

@@ -1,3 +1,44 @@
+# Migrating Stampd v3.3.x → v3.4.0 (unreleased)
+
+v3.4.0 closes four security gaps in identity verification and template editing. Apply the V20 migration. No public package API is removed, but three behaviours change on purpose; review them below.
+
+## TL;DR
+
+1. Apply the V20 migration on every database provider. It adds the nullable `Recipients.PendingVerificationId` column. No data is filled.
+2. If you use `Stampd.Identity.SmsOtp` or `Stampd.Identity.Kba` with their mock providers outside the Development environment, register a real `ISmsGateway` / `IKbaProvider`. Otherwise the host now refuses to start. For a test environment you can set `SmsOtpOptions.AllowMockGateway` or `KbaIdentityVerificationOptions.AllowMockProvider`.
+3. A template's roles and fields can no longer be changed while a request that uses it is Draft, Sent or InProgress (`409`).
+
+## Changes
+
+### 1. An identity-check code only verifies the recipient it was sent to
+
+- `POST /api/sign/{accessToken}/verify-identity` accepts only the verification ID most recently issued by `initiate-verification` on the same signing link. Before 3.4 a code issued on any link verified any recipient.
+- Requesting a new code makes the earlier one stop working.
+- A challenge started before the upgrade is not recorded against its recipient, so it is refused. The signer requests a new code.
+- New on `Stampd.Core.Entities.Recipient`: `PendingVerificationId`.
+
+### 2. OTP attempt limits hold under parallel requests
+
+- `EmailOtpProvider` and `SmsOtpProvider` count each attempt before comparing the code, so parallel requests can't get more guesses than `MaxFailedAttempts`. A correct code counts as an attempt, so the limit is now the number of tries in total.
+- A locked-out or expired challenge stays in the store until it is swept, so it keeps counting towards `InitiatesPerWindowMax`. Before 3.4 lockout deleted it, which reset the initiate limit. The admin dashboard's lockout counts now show real numbers.
+- `InMemoryOtpChallengeStore.IncrementFailedAttemptsAsync` is now atomic.
+- If you implement `IOtpChallengeStore`, make `IncrementFailedAttemptsAsync` atomic. It may return a value higher than this call's own increment, but never a lower one.
+
+### 3. Mock identity providers refuse to run outside Development
+
+- `AddSmsOtpIdentityVerification` and `AddKbaIdentityVerification` register a startup check. When the mock gateway or provider is the one in use and the host environment isn't Development, startup fails with a message naming the fix.
+- New options: `SmsOtpOptions.AllowMockGateway`, and `KbaIdentityVerificationOptions.AllowMockProvider` through a new `AddKbaIdentityVerification(services, configure)` overload.
+- `MockSmsGateway` no longer writes the phone number or message to stdout. It logs a masked number only; read messages in tests through its `onSend` callback.
+- Both packages now depend on `Microsoft.Extensions.Hosting.Abstractions` 10.0.15.
+
+### 4. Template edits can't change requests in flight
+
+- `PUT /api/templates/{id}` returns `409` when the roles or fields change and any request using the template is Draft, Sent or InProgress. Changing only the name or description still succeeds and leaves the roles and fields untouched.
+- Before 3.4 every edit re-created the roles, which detached in-flight recipients from their role and removed their identity-check requirement.
+- The update now runs in one transaction.
+
+---
+
 # Migrating Stampd v3.2.x → v3.3.0
 
 v3.3.0 makes the signed-document record accurate, fixes the admin downloads and makes the admin exports and analytics work on SQLite. Apply the V19 migration. No public package API is removed.

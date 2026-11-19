@@ -308,6 +308,10 @@ namespace Stampd.Infrastructure.Postgres.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
+                    b.Property<string>("PendingVerificationId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
                     b.Property<Guid?>("RoleId")
                         .HasColumnType("uuid");
 

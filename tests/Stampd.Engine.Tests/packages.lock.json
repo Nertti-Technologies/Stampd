@@ -92,12 +92,41 @@
         "resolved": "10.0.15",
         "contentHash": "KczR2nV7ooeimtZxAawPht/FJUHnX+uoWy7y4pba+iaRQBwUM2NwtiqZg+/FpZDHUf2RkkzveGkhMTWDNzmDUA=="
       },
+      "Microsoft.Extensions.Diagnostics.Abstractions": {
+        "type": "Transitive",
+        "resolved": "10.0.15",
+        "contentHash": "oD1xl7uoHGnVuCEo3bjj1W3cVTMe55QVdkeis9YYdcnLfU42X58XTx6A1Sl7kiqp5LbzVrUvdy7F/mNKaOnpLg==",
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.15",
+          "Microsoft.Extensions.Options": "10.0.15"
+        }
+      },
+      "Microsoft.Extensions.FileProviders.Abstractions": {
+        "type": "Transitive",
+        "resolved": "10.0.15",
+        "contentHash": "1RSYAUtJeb76m2T0u5BbvwKY3s+ge9fT3cj1odvo5Bm+frc7pU9RSeXeMIlYHV8GjpqLdv2neeeomz010yYL8A==",
+        "dependencies": {
+          "Microsoft.Extensions.Primitives": "10.0.15"
+        }
+      },
+      "Microsoft.Extensions.Hosting.Abstractions": {
+        "type": "Transitive",
+        "resolved": "10.0.15",
+        "contentHash": "s/JBiwR3F/vKRCbe6WO5b6t6or1ISaZ3rllchcw6/FSWZmK8s2fAzD7elrZo7592FnMD1fhGoG/wuJL1YYtVXw==",
+        "dependencies": {
+          "Microsoft.Extensions.Configuration.Abstractions": "10.0.15",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.15",
+          "Microsoft.Extensions.Diagnostics.Abstractions": "10.0.15",
+          "Microsoft.Extensions.FileProviders.Abstractions": "10.0.15",
+          "Microsoft.Extensions.Logging.Abstractions": "10.0.15"
+        }
+      },
       "Microsoft.Extensions.Logging.Abstractions": {
         "type": "Transitive",
-        "resolved": "8.0.3",
-        "contentHash": "dL0QGToTxggRLMYY4ZYX5AMwBb+byQBd/5dMiZE07Nv73o6I5Are3C7eQTh7K2+A4ct0PVISSr7TZANbiNb2yQ==",
+        "resolved": "10.0.15",
+        "contentHash": "s5xzXGWqqlmmThMnQ1rnmL7QLwbluB2JqX9NaK8C9HPuHzN7kfmiddTRbwts5rQssATkh2B18RrofjeUD8g14A==",
         "dependencies": {
-          "Microsoft.Extensions.DependencyInjection.Abstractions": "8.0.2"
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.15"
         }
       },
       "Microsoft.Extensions.Options": {
@@ -346,7 +375,7 @@
         "type": "Project",
         "dependencies": {
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.15, )",
-          "Stampd.Core": "[3.0.0, )"
+          "Stampd.Core": "[3.3.0, )"
         }
       },
       "stampd.core": {
@@ -357,7 +386,7 @@
         "dependencies": {
           "BouncyCastle.Cryptography": "[2.6.2, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.15, )",
-          "Stampd.Core": "[3.0.0, )"
+          "Stampd.Core": "[3.3.0, )"
         }
       },
       "stampd.engine": {
@@ -367,8 +396,24 @@
           "PDFsharp": "[6.2.*, )",
           "SkiaSharp": "[3.119.4, )",
           "SkiaSharp.NativeAssets.Linux": "[3.119.4, )",
-          "Stampd.Core": "[3.0.0, )",
+          "Stampd.Core": "[3.3.0, )",
           "System.Security.Cryptography.Pkcs": "[10.0.15, )"
+        }
+      },
+      "stampd.identity.emailotp": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.15, )",
+          "Stampd.Core": "[3.3.0, )"
+        }
+      },
+      "stampd.identity.kba": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.15, )",
+          "Microsoft.Extensions.Hosting.Abstractions": "[10.0.15, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.15, )",
+          "Stampd.Core": "[3.3.0, )"
         }
       },
       "stampd.identity.oidc": {
@@ -377,14 +422,23 @@
           "Microsoft.AspNetCore.Authentication.JwtBearer": "[10.0.15, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.15, )",
           "Microsoft.Extensions.Options.ConfigurationExtensions": "[10.0.15, )",
-          "Stampd.Core": "[3.0.0, )"
+          "Stampd.Core": "[3.3.0, )"
         }
       },
       "stampd.identity.saml2": {
         "type": "Project",
         "dependencies": {
-          "Stampd.Core": "[3.0.0, )",
-          "Stampd.Identity.Oidc": "[3.0.0, )"
+          "Stampd.Core": "[3.3.0, )",
+          "Stampd.Identity.Oidc": "[3.3.0, )"
+        }
+      },
+      "stampd.identity.smsotp": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.15, )",
+          "Microsoft.Extensions.Hosting.Abstractions": "[10.0.15, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.15, )",
+          "Stampd.Core": "[3.3.0, )"
         }
       }
     }

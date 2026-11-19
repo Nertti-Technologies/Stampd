@@ -114,18 +114,32 @@ public sealed class SmsOtpProvider : IIdentityVerificationProvider
 
         if (challenge.ExpiresAtUtc < DateTimeOffset.UtcNow)
         {
-            await _store.RemoveAsync(verificationId, cancellationToken).ConfigureAwait(false);
+            // The row stays until the sweep so it keeps counting towards the initiate
+            // rate limit (CountInitiatesSinceAsync).
             return new IdentityVerificationResult(Succeeded: false, FailureReason: "Verification code expired.");
         }
 
-        // v1.3 #136 — same lockout gate as EmailOtpProvider, keyed off the in-store
-        // FailedAttempts counter.
-        if (_options.MaxFailedAttempts > 0 && challenge.FailedAttempts >= _options.MaxFailedAttempts)
+        // Reserve this attempt before comparing the code. The store increments
+        // atomically, so parallel requests each take their own slot and at most
+        // MaxFailedAttempts codes are ever compared against one challenge. A
+        // locked-out challenge also stays in the store so it keeps counting towards
+        // the initiate rate limit.
+        var attempts = 0;
+        if (_options.MaxFailedAttempts > 0)
         {
-            await _store.RemoveAsync(verificationId, cancellationToken).ConfigureAwait(false);
-            return new IdentityVerificationResult(
-                Succeeded: false,
-                FailureReason: "Too many failed attempts. Please request a new verification code.");
+            attempts = await _store
+                .IncrementFailedAttemptsAsync(verificationId, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (attempts < 0)
+            {
+                return new IdentityVerificationResult(Succeeded: false, FailureReason: "Verification not found or expired.");
+            }
+
+            if (attempts > _options.MaxFailedAttempts)
+            {
+                return TooManyAttempts();
+            }
         }
 
         bool matched;
@@ -142,24 +156,19 @@ public sealed class SmsOtpProvider : IIdentityVerificationProvider
 
         if (!matched)
         {
-            var newCount = await _store
-                .IncrementFailedAttemptsAsync(verificationId, cancellationToken)
-                .ConfigureAwait(false);
-
-            if (_options.MaxFailedAttempts > 0 && newCount >= _options.MaxFailedAttempts)
-            {
-                await _store.RemoveAsync(verificationId, cancellationToken).ConfigureAwait(false);
-                return new IdentityVerificationResult(
-                    Succeeded: false,
-                    FailureReason: "Too many failed attempts. Please request a new verification code.");
-            }
-
-            return new IdentityVerificationResult(Succeeded: false, FailureReason: "Incorrect code.");
+            return _options.MaxFailedAttempts > 0 && attempts >= _options.MaxFailedAttempts
+                ? TooManyAttempts()
+                : new IdentityVerificationResult(Succeeded: false, FailureReason: "Incorrect code.");
         }
 
         await _store.RemoveAsync(verificationId, cancellationToken).ConfigureAwait(false);
         return new IdentityVerificationResult(Succeeded: true);
     }
+
+    private static IdentityVerificationResult TooManyAttempts()
+        => new(
+            Succeeded: false,
+            FailureReason: "Too many failed attempts. Please request a new verification code.");
 
     private static string GenerateCode()
     {
@@ -167,7 +176,7 @@ public sealed class SmsOtpProvider : IIdentityVerificationProvider
         return n.ToString("D6", System.Globalization.CultureInfo.InvariantCulture);
     }
 
-    private static string MaskPhone(string phone)
+    internal static string MaskPhone(string phone)
     {
         if (phone.Length <= 4) return "***";
         return $"***{phone[^4..]}";
@@ -208,4 +217,11 @@ public sealed class SmsOtpOptions
 
     /// <summary>v1.3 #136 — same semantics as <c>EmailOtpOptions.InitiateRateLimitWindow</c>.</summary>
     public TimeSpan InitiateRateLimitWindow { get; set; } = TimeSpan.FromMinutes(15);
+
+    /// <summary>
+    /// Lets the host start outside the Development environment while
+    /// <see cref="MockSmsGateway"/> is the registered gateway. Leave false in production:
+    /// the mock sends nothing, so no signer can receive a code.
+    /// </summary>
+    public bool AllowMockGateway { get; set; }
 }

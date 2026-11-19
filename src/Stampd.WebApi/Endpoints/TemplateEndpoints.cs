@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 
 using Microsoft.AspNetCore.Mvc;
@@ -254,25 +255,98 @@ internal static class TemplateEndpoints
             }
         }
 
-        // Wipe child collections via raw DELETE — bypasses the change tracker entirely,
-        // which sidesteps the SetNull-cascade-on-deleted-field interaction that produced
-        // phantom optimistic-concurrency throws when this method used the change tracker.
-        //
-        // IgnoreQueryFilters is safe here: we've already tenant-validated via the parent
-        // existence check above, and every child's FK chains back to the same template.
-        // Skipping the filter avoids EF having to translate the navigation-based tenant
-        // predicate into a subquery on the DELETE.
-        await db.TemplateFields
-            .IgnoreQueryFilters()
-            .Where(f => f.DocumentTemplateId == id)
-            .ExecuteDeleteAsync(ct)
+        // Roles and fields can't change under a request that is still out for signature:
+        // replacing them detaches its recipients from their role (dropping the identity
+        // check) and moves the fields its remaining signers see.
+        var layoutChanged = await LayoutChangedAsync(db, id, body, ct).ConfigureAwait(false);
+        if (layoutChanged)
+        {
+            var inFlight = await db.SigningRequests
+                .AnyAsync(
+                    r => r.DocumentTemplateId == id
+                        && (r.Status == SigningRequestStatus.Draft
+                            || r.Status == SigningRequestStatus.Sent
+                            || r.Status == SigningRequestStatus.InProgress),
+                    ct)
+                .ConfigureAwait(false);
+            if (inFlight)
+            {
+                return Results.Problem(
+                    "This template has signing requests that are not finished, so its roles and fields can't change. " +
+                    "Wait for them to complete, void them, or create a new template. The name and description can still be edited.",
+                    statusCode: 409);
+            }
+        }
+
+        // One transaction, so a failure part-way never leaves a template without its
+        // roles. Run through the execution strategy because the SQL Server and Postgres
+        // providers retry on transient failures, which needs the whole unit replayable.
+        var strategy = db.Database.CreateExecutionStrategy();
+        var found = await strategy.ExecuteAsync(async () =>
+        {
+            db.ChangeTracker.Clear();
+            await using var transaction = await db.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
+            if (!await WriteUpdateAsync(db, id, body, layoutChanged, ct).ConfigureAwait(false))
+            {
+                return false;
+            }
+
+            await transaction.CommitAsync(ct).ConfigureAwait(false);
+            return true;
+        }).ConfigureAwait(false);
+
+        if (!found)
+        {
+            return Results.NotFound();
+        }
+
+        // Re-fetch the freshly updated template (with its newly-attached children) for
+        // the response body. AsNoTracking because we have no further mutations to do.
+        var refreshed = await db.DocumentTemplates
+            .AsNoTracking()
+            .Include(t => t.Roles)
+            .Include(t => t.Fields)
+            .FirstAsync(t => t.Id == id, ct)
             .ConfigureAwait(false);
 
-        await db.TemplateRecipientRoles
-            .IgnoreQueryFilters()
-            .Where(r => r.DocumentTemplateId == id)
-            .ExecuteDeleteAsync(ct)
-            .ConfigureAwait(false);
+        return Results.Ok(ToResponse(refreshed));
+    }
+
+    /// <summary>
+    /// Writes the template update. The layout (roles and fields) is replaced only when
+    /// it changed, because replacing it gives the roles new IDs and detaches the
+    /// recipients of earlier requests from their role. Returns false when the template
+    /// disappeared under a concurrent delete.
+    /// </summary>
+    private static async Task<bool> WriteUpdateAsync(
+        StampdDbContext db,
+        Guid id,
+        UpdateTemplateRequest body,
+        bool replaceLayout,
+        CancellationToken ct)
+    {
+        if (replaceLayout)
+        {
+            // Wipe child collections via raw DELETE — bypasses the change tracker entirely,
+            // which sidesteps the SetNull-cascade-on-deleted-field interaction that produced
+            // phantom optimistic-concurrency throws when this method used the change tracker.
+            //
+            // IgnoreQueryFilters is safe here: UpdateAsync has already tenant-validated via
+            // the parent existence check, and every child's FK chains back to the same template.
+            // Skipping the filter avoids EF having to translate the navigation-based tenant
+            // predicate into a subquery on the DELETE.
+            await db.TemplateFields
+                .IgnoreQueryFilters()
+                .Where(f => f.DocumentTemplateId == id)
+                .ExecuteDeleteAsync(ct)
+                .ConfigureAwait(false);
+
+            await db.TemplateRecipientRoles
+                .IgnoreQueryFilters()
+                .Where(r => r.DocumentTemplateId == id)
+                .ExecuteDeleteAsync(ct)
+                .ConfigureAwait(false);
+        }
 
         // Update scalar fields and rotate the concurrency token in a single statement.
         // ExecuteUpdate doesn't go through the IsConcurrencyToken machinery, so we're
@@ -292,7 +366,12 @@ internal static class TemplateEndpoints
         {
             // Template disappeared between the existence check and the update. Rare,
             // but possible under concurrent delete.
-            return Results.NotFound();
+            return false;
+        }
+
+        if (!replaceLayout)
+        {
+            return true;
         }
 
         // Insert the new roles + fields via their own DbSets — by FK, not via the
@@ -353,18 +432,68 @@ internal static class TemplateEndpoints
         }
 
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
+        return true;
+    }
 
-        // Re-fetch the freshly updated template (with its newly-attached children) for
-        // the response body. AsNoTracking because we have no further mutations to do.
-        var refreshed = await db.DocumentTemplates
+    /// <summary>
+    /// True when the request's roles or fields differ from the stored ones. Fields are
+    /// compared as a set because their order comes from their position on the page.
+    /// </summary>
+    private static async Task<bool> LayoutChangedAsync(
+        StampdDbContext db,
+        Guid id,
+        UpdateTemplateRequest body,
+        CancellationToken ct)
+    {
+        var roles = await db.TemplateRecipientRoles
             .AsNoTracking()
-            .Include(t => t.Roles)
-            .Include(t => t.Fields)
-            .FirstAsync(t => t.Id == id, ct)
+            .IgnoreQueryFilters()
+            .Where(r => r.DocumentTemplateId == id)
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+        var fields = await db.TemplateFields
+            .AsNoTracking()
+            .IgnoreQueryFilters()
+            .Where(f => f.DocumentTemplateId == id)
+            .ToListAsync(ct)
             .ConfigureAwait(false);
 
-        return Results.Ok(ToResponse(refreshed));
+        var roleNames = roles.ToDictionary(r => r.Id, r => r.Name);
+
+        var storedRoles = roles.Select(r => RoleKey(r.Name, r.RoutingOrder, r.RequiresIdentityVerification));
+        var incomingRoles = body.Roles.Select(r => RoleKey(r.Name, r.RoutingOrder, r.RequiresIdentityVerification));
+
+        var storedFields = fields.Select(f => FieldKey(
+            f.PageNumber, f.BoundsX, f.BoundsY, f.BoundsWidth, f.BoundsHeight, f.Kind, f.IsRequired, f.Label, f.DefaultValue,
+            f.AssignedRoleId is { } roleId && roleNames.TryGetValue(roleId, out var name) ? name : null));
+        var incomingFields = body.Fields.Select(f => FieldKey(
+            f.PageNumber, f.Bounds.X, f.Bounds.Y, f.Bounds.Width, f.Bounds.Height, f.Kind, f.IsRequired, f.Label, f.DefaultValue,
+            f.AssignedRoleName));
+
+        return !SameSet(storedRoles, incomingRoles) || !SameSet(storedFields, incomingFields);
+
+        static bool SameSet(IEnumerable<string> a, IEnumerable<string> b)
+            => a.Order(StringComparer.Ordinal).SequenceEqual(b.Order(StringComparer.Ordinal), StringComparer.Ordinal);
     }
+
+    private static string RoleKey(string name, int routingOrder, bool requiresIdentityVerification)
+        => string.Join('\u001f', name.Trim().ToUpperInvariant(), routingOrder.ToString(CultureInfo.InvariantCulture), requiresIdentityVerification);
+
+    private static string FieldKey(
+        int page, double x, double y, double width, double height, SignatureFieldKind kind,
+        bool isRequired, string? label, string? defaultValue, string? roleName)
+        => string.Join(
+            '\u001f',
+            page.ToString(CultureInfo.InvariantCulture),
+            x.ToString("R", CultureInfo.InvariantCulture),
+            y.ToString("R", CultureInfo.InvariantCulture),
+            width.ToString("R", CultureInfo.InvariantCulture),
+            height.ToString("R", CultureInfo.InvariantCulture),
+            kind,
+            isRequired,
+            label ?? string.Empty,
+            defaultValue ?? string.Empty,
+            string.IsNullOrWhiteSpace(roleName) ? string.Empty : roleName.Trim().ToUpperInvariant());
 
     private static async Task<IResult> SignImmediateAsync(
         Guid id,

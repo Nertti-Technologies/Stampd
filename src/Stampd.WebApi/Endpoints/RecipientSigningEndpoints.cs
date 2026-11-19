@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -326,11 +329,19 @@ internal static class RecipientSigningEndpoints
                 });
         }
 
+        await workflow.RecordIdentityChallengeAsync(recipient, challenge.VerificationId, ct).ConfigureAwait(false);
+
         return Results.Ok(new InitiateVerificationResponse(
             VerificationId: challenge.VerificationId,
             ExpiresAtUtc: challenge.ExpiresAtUtc,
             UserVisibleHint: challenge.UserVisibleHint));
     }
+
+    private static bool IsPendingChallenge(Recipient recipient, string verificationId)
+        => recipient.PendingVerificationId is { } pending
+            && CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(pending),
+                Encoding.UTF8.GetBytes(verificationId));
 
     private static async Task<IResult> VerifyIdentityAsync(
         string accessToken,
@@ -372,6 +383,16 @@ internal static class RecipientSigningEndpoints
                 Succeeded: true,
                 FailureReason: null,
                 IdentityVerifiedAtUtc: recipient.IdentityVerifiedAtUtc));
+        }
+
+        // The challenge must be the one issued to this recipient. Without this, a code
+        // sent to another recipient's inbox would verify this one.
+        if (!IsPendingChallenge(recipient, body.VerificationId))
+        {
+            return Results.Ok(new VerifyIdentityResponse(
+                Succeeded: false,
+                FailureReason: "Verification not found or expired.",
+                IdentityVerifiedAtUtc: null));
         }
 
         var result = await verificationProvider.VerifyAsync(body.VerificationId, body.Code, ct).ConfigureAwait(false);

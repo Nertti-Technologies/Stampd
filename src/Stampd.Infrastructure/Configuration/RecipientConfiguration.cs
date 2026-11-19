@@ -18,6 +18,7 @@ internal sealed class RecipientConfiguration : IEntityTypeConfiguration<Recipien
         builder.Property(r => r.RoutingOrder).IsRequired();
         builder.Property(r => r.Status).IsRequired().HasConversion<int>();
         builder.Property(r => r.IdentityVerificationMethod).HasMaxLength(64);
+        builder.Property(r => r.PendingVerificationId).HasMaxLength(128);
         builder.Property(r => r.DeclineReason).HasMaxLength(2048);
         builder.Property(r => r.AccessToken).IsRequired().HasMaxLength(128);
 

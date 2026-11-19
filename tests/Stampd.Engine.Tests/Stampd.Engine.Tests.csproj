@@ -26,6 +26,10 @@
     <ProjectReference Include="..\..\src\Stampd.Identity.Saml2\Stampd.Identity.Saml2.csproj" />
     <!-- v3.0.0 — compliance gate tests. -->
     <ProjectReference Include="..\..\src\Stampd.Compliance\Stampd.Compliance.csproj" />
+    <!-- OTP attempt limits and mock-provider startup guards. -->
+    <ProjectReference Include="..\..\src\Stampd.Identity.EmailOtp\Stampd.Identity.EmailOtp.csproj" />
+    <ProjectReference Include="..\..\src\Stampd.Identity.SmsOtp\Stampd.Identity.SmsOtp.csproj" />
+    <ProjectReference Include="..\..\src\Stampd.Identity.Kba\Stampd.Identity.Kba.csproj" />
   </ItemGroup>
 
   <ItemGroup>

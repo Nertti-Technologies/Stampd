@@ -12,7 +12,9 @@ public static class SmsOtpServiceCollectionExtensions
     /// <see cref="IIdentityVerificationProvider"/>. Defaults to an in-memory
     /// <see cref="InMemoryOtpChallengeStore"/> and a <see cref="MockSmsGateway"/> — wire
     /// a real <see cref="ISmsGateway"/> (Twilio, SNS) and a persistent store BEFORE calling
-    /// this for production deployments.
+    /// this for production deployments. Outside the Development environment the host
+    /// refuses to start while the mock gateway is registered, unless
+    /// <see cref="SmsOtpOptions.AllowMockGateway"/> is set.
     /// </summary>
     public static IServiceCollection AddSmsOtpIdentityVerification(
         this IServiceCollection services,
@@ -27,6 +29,7 @@ public static class SmsOtpServiceCollectionExtensions
         services.TryAddSingleton<IOtpChallengeStore, InMemoryOtpChallengeStore>();
         services.TryAddSingleton<ISmsGateway, MockSmsGateway>();
         services.TryAddSingleton<IIdentityVerificationProvider, SmsOtpProvider>();
+        services.AddHostedService<MockSmsGatewayGuard>();
 
         return services;
     }

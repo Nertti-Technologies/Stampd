@@ -21,9 +21,12 @@ namespace Stampd.Core.Identity;
 /// </param>
 /// <param name="ExpiresAtUtc">When the challenge becomes invalid.</param>
 /// <param name="FailedAttempts">
-/// Count of incorrect verification attempts against this specific challenge. v1.3 #136
-/// uses this for brute-force lockout — when the count hits a per-provider threshold the
-/// challenge is removed and the recipient must request a new code. Defaults to 0 so
+/// Count of verification attempts against this specific challenge. The OTP providers
+/// increment it before comparing the code, so a successful attempt counts too (the
+/// challenge is then removed). Brute-force lockout: once the count passes the
+/// per-provider threshold no further code is compared and the recipient must request a
+/// new one. The challenge stays in the store so it still counts towards the initiate
+/// rate limit. Defaults to 0 so
 /// pre-1.3 callers constructing OtpChallenge with the 4-arg form keep working.
 /// </param>
 /// <param name="CreatedAtUtc">
@@ -61,8 +64,9 @@ public interface IOtpChallengeStore
 
     /// <summary>
     /// Atomically bumps <c>FailedAttempts</c> on the named challenge and returns the new
-    /// value. Returns -1 when the challenge no longer exists (already removed by
-    /// expiry sweep, prior lockout, or successful verify). v1.3 #136 — brute-force
+    /// value. Returns -1 when the challenge no longer exists (removed by a sweep or a
+    /// successful verify). Under concurrency the returned value may exceed this call's
+    /// own increment but never undercounts it, so lockout errs on the safe side. v1.3 #136 — brute-force
     /// lockout primitive used by <c>EmailOtpProvider.VerifyAsync</c> /
     /// <c>SmsOtpProvider.VerifyAsync</c>.
     /// </summary>
@@ -110,15 +114,18 @@ public sealed class InMemoryOtpChallengeStore : IOtpChallengeStore
     /// <inheritdoc />
     public Task<int> IncrementFailedAttemptsAsync(string verificationId, CancellationToken cancellationToken = default)
     {
-        // ConcurrentDictionary.AddOrUpdate is read-modify-write atomic via internal locks
-        // — safe for the multi-tab/multi-request races OTP verify-spam would create.
-        if (!_store.TryGetValue(verificationId, out var existing))
+        // Compare-and-swap so parallel verify requests each get a distinct count. A
+        // plain read-then-write would let them all read the same value.
+        while (_store.TryGetValue(verificationId, out var existing))
         {
-            return Task.FromResult(-1);
+            var updated = existing with { FailedAttempts = existing.FailedAttempts + 1 };
+            if (_store.TryUpdate(verificationId, updated, existing))
+            {
+                return Task.FromResult(updated.FailedAttempts);
+            }
         }
-        var updated = existing with { FailedAttempts = existing.FailedAttempts + 1 };
-        _store[verificationId] = updated;
-        return Task.FromResult(updated.FailedAttempts);
+
+        return Task.FromResult(-1);
     }
 
     /// <inheritdoc />
