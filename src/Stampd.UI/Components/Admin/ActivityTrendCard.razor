@@ -1,0 +1,37 @@
+<!-- Trend chart -->
+<section class="stampd-card">
+    <h2 class="stampd-card-title">Activity — last @(Trend?.WindowDays ?? 30) days</h2>
+    @if (Trend is null || Trend.Buckets.Count == 0)
+    {
+        <p class="stampd-page-subtitle">No activity in the window.</p>
+    }
+    else
+    {
+        @* Server-rendered SVG sparkline so we don't take a Chart.js dependency in
+           the slice-A scope. Width 100% with viewBox so it scales. Dispatched is
+           the navy line; completed is the blue line. *@
+        <div style="margin-top:0.75rem;">
+            @{
+                var maxVal = Math.Max(1, Trend.Buckets.Max(b => Math.Max(b.Dispatched, b.Completed)));
+                var w = 100.0 / Trend.Buckets.Count;
+            }
+            <svg viewBox="0 0 100 30" preserveAspectRatio="none" style="width:100%; height:140px; border:1px solid var(--stampd-border); border-radius:8px; background: var(--stampd-surface-alt);">
+                <!-- Dispatched line -->
+                <polyline fill="none" stroke="#0b3c6e" stroke-width="0.5"
+                          points="@string.Join(' ', Trend.Buckets.Select((b, i) => $"{(i + 0.5) * w:F2},{30 - (b.Dispatched * 30.0 / maxVal):F2}"))" />
+                <!-- Completed line -->
+                <polyline fill="none" stroke="#2b7fce" stroke-width="0.5" stroke-dasharray="0.6,0.6"
+                          points="@string.Join(' ', Trend.Buckets.Select((b, i) => $"{(i + 0.5) * w:F2},{30 - (b.Completed * 30.0 / maxVal):F2}"))" />
+            </svg>
+            <div style="display:flex; gap:1rem; margin-top:0.5rem; font-size:0.78rem; color: var(--stampd-muted);">
+                <span><span style="display:inline-block; width:18px; height:2px; background:#0b3c6e; vertical-align:middle; margin-right:6px;"></span>Dispatched</span>
+                <span><span style="display:inline-block; width:18px; height:2px; background:#2b7fce; vertical-align:middle; margin-right:6px;"></span>Completed</span>
+                <span style="margin-left:auto;">Peak: <strong style="color: var(--stampd-fg);">@maxVal</strong> / day</span>
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter] public AdminDashboardTrend? Trend { get; set; }
+}

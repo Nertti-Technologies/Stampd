@@ -12,7 +12,7 @@ namespace Stampd.WebApi.Services;
 /// <see cref="Program"/> when <c>Stampd:Tsa:EnableDigiCertFailover=true</c>.
 /// </summary>
 /// <remarks>
-/// The factory exists so the failover-wrap registration in Program.cs can stay a
+/// The factory exists so the failover-wrap registration in Hosting/TimestampRegistration.cs can stay a
 /// small DI-resolved factory call instead of a sprawling lambda. It also gives
 /// us a single home for the DigiCert <see cref="HttpClient"/> name + the
 /// logger plumbing.

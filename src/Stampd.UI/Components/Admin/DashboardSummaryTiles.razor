@@ -1,0 +1,28 @@
+<!-- Summary tiles -->
+<section style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:0.85rem; margin-bottom:1rem;">
+    @{ var tile = "background: var(--stampd-surface); border:1px solid var(--stampd-border); border-radius:12px; padding:1rem 1.2rem; display:flex; flex-direction:column; gap:0.35rem;"; }
+    <div style="@tile">
+        <div class="signer-field-label">Total requests</div>
+        <div style="font-size:1.65rem; font-weight:700;">@Summary.Total</div>
+        <div style="font-size:0.78rem; color: var(--stampd-muted);">All time, tenant-wide</div>
+    </div>
+    <div style="@tile">
+        <div class="signer-field-label">Completed</div>
+        <div style="font-size:1.65rem; font-weight:700; color:#16a34a;">@Summary.Completed</div>
+        <div style="font-size:0.78rem; color: var(--stampd-muted);">@Summary.CompletionRatePercent.ToString("0.#")% completion rate</div>
+    </div>
+    <div style="@tile">
+        <div class="signer-field-label">In progress</div>
+        <div style="font-size:1.65rem; font-weight:700; color:#2b7fce;">@Summary.InProgress</div>
+        <div style="font-size:0.78rem; color: var(--stampd-muted);">Sent or partially signed</div>
+    </div>
+    <div style="@tile">
+        <div class="signer-field-label">Declined / voided / expired</div>
+        <div style="font-size:1.65rem; font-weight:700; color:#dc2626;">@Summary.Declined</div>
+        <div style="font-size:0.78rem; color: var(--stampd-muted);">Did not reach signed</div>
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public AdminDashboardSummary Summary { get; set; } = default!;
+}

@@ -2,7 +2,6 @@
 @rendermode InteractiveServer
 @inject DesignerApiClient Api
 @inject CurrentUserService CurrentUser
-@inject FileDownloader Downloader
 @inject IHostEnvironment HostEnv
 @* @inject NavigationManager Navigation *@
 
@@ -46,660 +45,24 @@
     }
     else
     {
-        <!-- Summary tiles -->
-        <section style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:0.85rem; margin-bottom:1rem;">
-            @{ var tile = "background: var(--stampd-surface); border:1px solid var(--stampd-border); border-radius:12px; padding:1rem 1.2rem; display:flex; flex-direction:column; gap:0.35rem;"; }
-            <div style="@tile">
-                <div class="signer-field-label">Total requests</div>
-                <div style="font-size:1.65rem; font-weight:700;">@_summary.Total</div>
-                <div style="font-size:0.78rem; color: var(--stampd-muted);">All time, tenant-wide</div>
-            </div>
-            <div style="@tile">
-                <div class="signer-field-label">Completed</div>
-                <div style="font-size:1.65rem; font-weight:700; color:#16a34a;">@_summary.Completed</div>
-                <div style="font-size:0.78rem; color: var(--stampd-muted);">@_summary.CompletionRatePercent.ToString("0.#")% completion rate</div>
-            </div>
-            <div style="@tile">
-                <div class="signer-field-label">In progress</div>
-                <div style="font-size:1.65rem; font-weight:700; color:#2b7fce;">@_summary.InProgress</div>
-                <div style="font-size:0.78rem; color: var(--stampd-muted);">Sent or partially signed</div>
-            </div>
-            <div style="@tile">
-                <div class="signer-field-label">Declined / voided / expired</div>
-                <div style="font-size:1.65rem; font-weight:700; color:#dc2626;">@_summary.Declined</div>
-                <div style="font-size:0.78rem; color: var(--stampd-muted);">Did not reach signed</div>
-            </div>
-        </section>
+        <DashboardSummaryTiles Summary="_summary" />
 
-        <!-- Trend chart -->
-        <section class="stampd-card">
-            <h2 class="stampd-card-title">Activity — last @(_trend?.WindowDays ?? 30) days</h2>
-            @if (_trend is null || _trend.Buckets.Count == 0)
-            {
-                <p class="stampd-page-subtitle">No activity in the window.</p>
-            }
-            else
-            {
-                @* Server-rendered SVG sparkline so we don't take a Chart.js dependency in
-                   the slice-A scope. Width 100% with viewBox so it scales. Dispatched is
-                   the navy line; completed is the blue line. *@
-                <div style="margin-top:0.75rem;">
-                    @{
-                        var maxVal = Math.Max(1, _trend.Buckets.Max(b => Math.Max(b.Dispatched, b.Completed)));
-                        var w = 100.0 / _trend.Buckets.Count;
-                    }
-                    <svg viewBox="0 0 100 30" preserveAspectRatio="none" style="width:100%; height:140px; border:1px solid var(--stampd-border); border-radius:8px; background: var(--stampd-surface-alt);">
-                        <!-- Dispatched line -->
-                        <polyline fill="none" stroke="#0b3c6e" stroke-width="0.5"
-                                  points="@string.Join(' ', _trend.Buckets.Select((b, i) => $"{(i + 0.5) * w:F2},{30 - (b.Dispatched * 30.0 / maxVal):F2}"))" />
-                        <!-- Completed line -->
-                        <polyline fill="none" stroke="#2b7fce" stroke-width="0.5" stroke-dasharray="0.6,0.6"
-                                  points="@string.Join(' ', _trend.Buckets.Select((b, i) => $"{(i + 0.5) * w:F2},{30 - (b.Completed * 30.0 / maxVal):F2}"))" />
-                    </svg>
-                    <div style="display:flex; gap:1rem; margin-top:0.5rem; font-size:0.78rem; color: var(--stampd-muted);">
-                        <span><span style="display:inline-block; width:18px; height:2px; background:#0b3c6e; vertical-align:middle; margin-right:6px;"></span>Dispatched</span>
-                        <span><span style="display:inline-block; width:18px; height:2px; background:#2b7fce; vertical-align:middle; margin-right:6px;"></span>Completed</span>
-                        <span style="margin-left:auto;">Peak: <strong style="color: var(--stampd-fg);">@maxVal</strong> / day</span>
-                    </div>
-                </div>
-            }
-        </section>
+        <ActivityTrendCard Trend="_trend" />
 
-        <!-- Top templates -->
-        <section class="stampd-card">
-            <h2 class="stampd-card-title">Most-used templates</h2>
-            @if (_topTemplates is null || _topTemplates.Items.Count == 0)
-            {
-                <p class="stampd-page-subtitle">No templates with signing activity yet.</p>
-            }
-            else
-            {
-                <div class="stampd-template-table" style="margin-top:0.75rem;">
-                    <div class="stampd-request-row stampd-template-head" style="grid-template-columns: 2.5fr 1fr 1fr 1fr;">
-                        <div>Template</div>
-                        <div>Requests</div>
-                        <div>Completed</div>
-                        <div>Completion rate</div>
-                    </div>
-                    @foreach (var t in _topTemplates.Items)
-                    {
-                        <div class="stampd-request-row" style="grid-template-columns: 2.5fr 1fr 1fr 1fr;">
-                            <div>
-                                <div style="font-weight:600;">@t.TemplateName</div>
-                                <div style="font-size:0.72rem; color: var(--stampd-muted); font-family: ui-monospace, monospace;">@t.TemplateId.ToString("N")[..8]</div>
-                            </div>
-                            <div>@t.Total</div>
-                            <div>@t.Completed</div>
-                            <div>
-                                <span class="stampd-chip @CompletionChipClass(t.CompletionRatePercent)">@t.CompletionRatePercent.ToString("0.#")%</span>
-                            </div>
-                        </div>
-                    }
-                </div>
-            }
-        </section>
+        <TopTemplatesCard TopTemplates="_topTemplates" />
 
-        <!-- v2.0 Slice C — analytics. Three widgets driven by a single window selector. -->
-        <section class="stampd-card">
-            <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap;">
-                <h2 class="stampd-card-title" style="margin-bottom:0;">Analytics</h2>
-                <div style="display:flex; align-items:center; gap:0.5rem; font-size:0.84rem; color: var(--stampd-muted);">
-                    <label for="analytics-window">Window</label>
-                    <select id="analytics-window"
-                            class="stampd-auth-input"
-                            style="width:auto; padding:0.3rem 0.55rem; font-size:0.84rem;"
-                            value="@_analyticsDays"
-                            @onchange="OnAnalyticsWindowChangedAsync">
-                        <option value="7">Last 7 days</option>
-                        <option value="30">Last 30 days</option>
-                        <option value="90">Last 90 days</option>
-                    </select>
-                </div>
-            </div>
+        <AnalyticsSection Days="_analyticsDays"
+                          OnWindowChanged="OnAnalyticsWindowChangedAsync"
+                          Funnel="_funnel"
+                          TimeToSign="_timeToSign"
+                          Iv="_iv"
+                          BySender="_bySender" />
 
-            <!-- Funnel -->
-            @if (_funnel is not null)
-            {
-                <div style="margin-top:1rem;">
-                    <div class="signer-field-label">Drop-off funnel</div>
-                    @{
-                        var maxStage = Math.Max(1, Math.Max(_funnel.Stages.Invited, Math.Max(_funnel.Stages.Viewed, _funnel.Stages.Signed)));
-                        string Bar(int v) => $"width:{(v * 100.0 / maxStage):F1}%;";
-                    }
-                    <div style="display:flex; flex-direction:column; gap:0.45rem; margin-top:0.5rem;">
-                        <div style="display:grid; grid-template-columns:120px 1fr auto; gap:0.5rem; align-items:center;">
-                            <span style="font-size:0.85rem;">Invited</span>
-                            <div style="background: var(--stampd-surface-alt); height:18px; border-radius:4px; overflow:hidden;">
-                                <div style="@Bar(_funnel.Stages.Invited) height:100%; background:#0b3c6e;"></div>
-                            </div>
-                            <strong style="font-size:0.86rem;">@_funnel.Stages.Invited</strong>
-                        </div>
-                        <div style="display:grid; grid-template-columns:120px 1fr auto; gap:0.5rem; align-items:center;">
-                            <span style="font-size:0.85rem;">Viewed</span>
-                            <div style="background: var(--stampd-surface-alt); height:18px; border-radius:4px; overflow:hidden;">
-                                <div style="@Bar(_funnel.Stages.Viewed) height:100%; background:#1a5698;"></div>
-                            </div>
-                            <strong style="font-size:0.86rem;">@_funnel.Stages.Viewed</strong>
-                        </div>
-                        <div style="display:grid; grid-template-columns:120px 1fr auto; gap:0.5rem; align-items:center;">
-                            <span style="font-size:0.85rem;">Signed</span>
-                            <div style="background: var(--stampd-surface-alt); height:18px; border-radius:4px; overflow:hidden;">
-                                <div style="@Bar(_funnel.Stages.Signed) height:100%; background:#16a34a;"></div>
-                            </div>
-                            <strong style="font-size:0.86rem;">@_funnel.Stages.Signed</strong>
-                        </div>
-                    </div>
-                    <div style="display:flex; gap:1rem; margin-top:0.6rem; font-size:0.8rem; color: var(--stampd-muted); flex-wrap:wrap;">
-                        <span>Drop-off Invited → Viewed: <strong style="color: var(--stampd-fg);">@_funnel.DropOff.InvitedToViewedPercent.ToString("0.#")%</strong></span>
-                        <span>Drop-off Viewed → Signed: <strong style="color: var(--stampd-fg);">@_funnel.DropOff.ViewedToSignedPercent.ToString("0.#")%</strong></span>
-                        <span style="margin-left:auto;">
-                            Conversion: <strong style="color: var(--stampd-fg);">@_funnel.ConversionRatePercent.ToString("0.#")%</strong>
-                            @if (_funnel.Deltas is { } d)
-                            {
-                                @RenderDeltaPoints(d.ConversionRatePercentPoints, lowerIsBetter: false)
-                            }
-                        </span>
-                    </div>
-                    @* v2.2 #223 — prior-window context line. Shows total signed delta
-                       so admins see direction even when the rate looks flat. *@
-                    @if (_funnel.PreviousWindow is { } prev && _funnel.Deltas is { } fd)
-                    {
-                        <div style="font-size:0.78rem; color: var(--stampd-muted); margin-top:0.35rem;">
-                            Prior @_analyticsDays days: @prev.Stages.Signed signed of @prev.Total
-                            (@prev.ConversionRatePercent.ToString("0.#")% conversion).
-                            Volume: @RenderDeltaPercent(fd.TotalPercent, lowerIsBetter: false)
-                            · Signed: @RenderDeltaPercent(fd.SignedPercent, lowerIsBetter: false)
-                        </div>
-                    }
+        <WebhookHealthCard Webhooks="_webhooks" />
 
-                    @* v2.3 #229 — weekday vs weekend split. Two mini-funnels side by
-                       side so admins instantly see the conversion gap. Big gap → schedule
-                       dispatches differently. No prior-window comparison here on purpose;
-                       it's already a side-by-side, adding another dimension blurs the
-                       insight. *@
-                    @if (_funnel.ByDayBucket is { } bdb)
-                    {
-                        <div style="margin-top:1rem; padding-top:0.85rem; border-top:1px solid var(--stampd-border);">
-                            <div class="signer-field-label">Weekday vs weekend dispatches</div>
-                            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-top:0.5rem;">
-                                <div style="background: var(--stampd-surface-alt); border:1px solid var(--stampd-border); border-radius:8px; padding:0.7rem 0.85rem;">
-                                    <div style="font-size:0.72rem; color: var(--stampd-muted); text-transform:uppercase; letter-spacing:0.05em;">Weekday (Mon–Fri UTC)</div>
-                                    <div style="display:flex; align-items:baseline; gap:0.5rem; margin-top:0.3rem;">
-                                        <strong style="font-size:1.2rem;">@bdb.Weekday.ConversionRatePercent.ToString("0.#")%</strong>
-                                        <span style="font-size:0.78rem; color: var(--stampd-muted);">@bdb.Weekday.Signed / @bdb.Weekday.Invited</span>
-                                    </div>
-                                </div>
-                                <div style="background: var(--stampd-surface-alt); border:1px solid var(--stampd-border); border-radius:8px; padding:0.7rem 0.85rem;">
-                                    <div style="font-size:0.72rem; color: var(--stampd-muted); text-transform:uppercase; letter-spacing:0.05em;">Weekend (Sat–Sun UTC)</div>
-                                    <div style="display:flex; align-items:baseline; gap:0.5rem; margin-top:0.3rem;">
-                                        <strong style="font-size:1.2rem;">@bdb.Weekend.ConversionRatePercent.ToString("0.#")%</strong>
-                                        <span style="font-size:0.78rem; color: var(--stampd-muted);">@bdb.Weekend.Signed / @bdb.Weekend.Invited</span>
-                                    </div>
-                                </div>
-                            </div>
-                            @{
-                                var gap = bdb.Weekday.ConversionRatePercent - bdb.Weekend.ConversionRatePercent;
-                            }
-                            <div style="font-size:0.78rem; color: var(--stampd-muted); margin-top:0.4rem;">
-                                @if (bdb.Weekday.Invited == 0 || bdb.Weekend.Invited == 0)
-                                {
-                                    <text>Not enough activity in one bucket to compare.</text>
-                                }
-                                else if (Math.Abs(gap) < 5)
-                                {
-                                    <text>Conversion is within 5 pp across day buckets — no scheduling signal here.</text>
-                                }
-                                else if (gap > 0)
-                                {
-                                    <text>Weekday dispatches convert <strong style="color: var(--stampd-fg);">@gap.ToString("0.#") pp</strong> higher than weekend ones.</text>
-                                }
-                                else
-                                {
-                                    <text>Weekend dispatches convert <strong style="color: var(--stampd-fg);">@Math.Abs(gap).ToString("0.#") pp</strong> higher than weekday ones.</text>
-                                }
-                            </div>
-                        </div>
-                    }
+        <AuditExportCard Days="_analyticsDays" />
 
-                    @* v2.2 #225 — request-weighted view. Sits below the recipient-level
-                       funnel so admins read both at once: per-recipient flow vs request-
-                       level completion. The weighted % treats a 2-of-3 request as 0.67
-                       so multi-recipient workflows aren't punished for partial state. *@
-                    @if (_funnel.RequestWeighted is { } rw)
-                    {
-                        <div style="margin-top:1rem; padding-top:0.85rem; border-top:1px solid var(--stampd-border);">
-                            <div class="signer-field-label">Request-weighted completion</div>
-                            <div style="display:flex; flex-wrap:wrap; gap:1.25rem; margin-top:0.5rem; font-size:0.85rem;">
-                                <div>
-                                    <span style="color: var(--stampd-muted);">Weighted complete:</span>
-                                    <strong style="font-size:1.05rem; margin-left:0.35rem;">@rw.WeightedCompletionPercent.ToString("0.#")%</strong>
-                                    @if (rw.Deltas is { } rwd)
-                                    {
-                                        @RenderDeltaPoints(rwd.WeightedCompletionPercentPoints, lowerIsBetter: false)
-                                    }
-                                </div>
-                                <div>
-                                    <span style="color: var(--stampd-muted);">Requests:</span>
-                                    <strong style="margin-left:0.35rem;">@rw.RequestCount</strong>
-                                </div>
-                                <div>
-                                    <span style="color: var(--stampd-muted);">Fully completed:</span>
-                                    <strong style="margin-left:0.35rem;">@rw.FullyCompletedRequests</strong>
-                                    <span style="color: var(--stampd-muted); margin-left:0.25rem; font-size:0.78rem;">
-                                        (@(rw.RequestCount == 0 ? "0" : Math.Round(rw.FullyCompletedRequests * 100.0 / rw.RequestCount, 1).ToString("0.#"))% all-signed)
-                                    </span>
-                                </div>
-                            </div>
-                            <div style="font-size:0.72rem; color: var(--stampd-muted); margin-top:0.35rem; font-style:italic;">
-                                Each request contributes <code>signed ÷ recipients</code> to the average — a 2-of-3 signed request scores 0.67, not 0.
-                            </div>
-                        </div>
-                    }
-                </div>
-            }
-
-            <!-- Identity verification metrics card -->
-            @if (_iv is not null)
-            {
-                <div style="margin-top:1.25rem;">
-                    <div class="signer-field-label">Identity verification (this window)</div>
-                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:0.6rem; margin-top:0.5rem;">
-                        @{ var ivTile = "background: var(--stampd-surface-alt); border:1px solid var(--stampd-border); border-radius:8px; padding:0.6rem 0.85rem;"; }
-                        <div style="@ivTile">
-                            <div style="font-size:0.72rem; color: var(--stampd-muted); text-transform:uppercase; letter-spacing:0.05em;">Required</div>
-                            <div style="font-size:1.2rem; font-weight:700;">@_iv.RequiredCount</div>
-                            @if (_iv.Deltas is { } rd)
-                            {
-                                <div style="font-size:0.72rem; margin-top:2px;">@RenderDeltaPercent(rd.RequiredCountPercent, lowerIsBetter: false)</div>
-                            }
-                        </div>
-                        <div style="@ivTile">
-                            <div style="font-size:0.72rem; color: var(--stampd-muted); text-transform:uppercase; letter-spacing:0.05em;">Verified</div>
-                            <div style="font-size:1.2rem; font-weight:700; color:#16a34a;">@_iv.VerifiedCount</div>
-                            <div style="font-size:0.72rem; color: var(--stampd-muted);">
-                                @_iv.VerifyRatePercent.ToString("0.#")% success
-                                @if (_iv.Deltas is { } vd)
-                                {
-                                    @RenderDeltaPoints(vd.VerifyRatePercentPoints, lowerIsBetter: false)
-                                }
-                            </div>
-                        </div>
-                        <div style="@ivTile">
-                            <div style="font-size:0.72rem; color: var(--stampd-muted); text-transform:uppercase; letter-spacing:0.05em;">OTP initiates</div>
-                            <div style="font-size:1.2rem; font-weight:700;">@_iv.InitiatesCount</div>
-                            @if (_iv.Deltas is { } id)
-                            {
-                                <div style="font-size:0.72rem; margin-top:2px;">@RenderDeltaPercent(id.InitiatesCountPercent, lowerIsBetter: false)</div>
-                            }
-                        </div>
-                        <div style="@ivTile">
-                            <div style="font-size:0.72rem; color: var(--stampd-muted); text-transform:uppercase; letter-spacing:0.05em;">Locked out</div>
-                            <div style="font-size:1.2rem; font-weight:700; color:#dc2626;">@_iv.LockedOutCount</div>
-                            <div style="font-size:0.72rem; color: var(--stampd-muted);">
-                                Hit max-attempts threshold
-                                @if (_iv.Deltas is { } ld)
-                                {
-                                    @* Lower lockouts are better — flip the color sense. *@
-                                    @RenderDeltaPercent(ld.LockedOutCountPercent, lowerIsBetter: true)
-                                }
-                            </div>
-                        </div>
-                    </div>
-
-                    @* v2.2 #224 — per-channel breakdown. Two small stacked bars: one for
-                       "OTP initiates by channel" (volume) and one for "Locked out by
-                       channel" (which method is taking the brute-force pressure). KBA
-                       initiates surface as the verified count (no separate attempt log)
-                       which we flag in the legend so admins don't misread it. *@
-                    @if (_iv.ByChannel is { } bc)
-                    {
-                        var totalInit = bc.Email.InitiatesCount + bc.Sms.InitiatesCount + bc.Kba.InitiatesCount;
-                        var totalLocked = bc.Email.LockedOutCount + bc.Sms.LockedOutCount + bc.Kba.LockedOutCount;
-                        <div style="margin-top:1rem; padding-top:0.85rem; border-top:1px solid var(--stampd-border);">
-                            <div class="signer-field-label">By channel</div>
-                            <div style="display:grid; grid-template-columns: 130px 1fr; gap:0.6rem; margin-top:0.5rem; font-size:0.82rem; align-items:center;">
-                                <div style="color: var(--stampd-muted);">OTP initiates</div>
-                                <div>
-                                    @if (totalInit == 0)
-                                    {
-                                        <span style="color: var(--stampd-muted);">No activity in this window.</span>
-                                    }
-                                    else
-                                    {
-                                        <div style="display:flex; height:14px; border-radius:4px; overflow:hidden; background: var(--stampd-surface-alt);">
-                                            <div title="Email: @bc.Email.InitiatesCount"
-                                                 style="width:@(StackPct(bc.Email.InitiatesCount, totalInit))%; background:#0b3c6e;"></div>
-                                            <div title="SMS: @bc.Sms.InitiatesCount"
-                                                 style="width:@(StackPct(bc.Sms.InitiatesCount, totalInit))%; background:#1a5698;"></div>
-                                            <div title="KBA: @bc.Kba.InitiatesCount (proxied from verified — no separate attempt log)"
-                                                 style="width:@(StackPct(bc.Kba.InitiatesCount, totalInit))%; background:#16a34a;"></div>
-                                        </div>
-                                        <div style="display:flex; gap:0.85rem; margin-top:0.3rem; font-size:0.75rem; color: var(--stampd-muted);">
-                                            <span><span style="display:inline-block; width:8px; height:8px; background:#0b3c6e; border-radius:2px; margin-right:3px;"></span> Email @bc.Email.InitiatesCount</span>
-                                            <span><span style="display:inline-block; width:8px; height:8px; background:#1a5698; border-radius:2px; margin-right:3px;"></span> SMS @bc.Sms.InitiatesCount</span>
-                                            <span><span style="display:inline-block; width:8px; height:8px; background:#16a34a; border-radius:2px; margin-right:3px;"></span> KBA @bc.Kba.InitiatesCount*</span>
-                                        </div>
-                                    }
-                                </div>
-                                <div style="color: var(--stampd-muted);">Locked out</div>
-                                <div>
-                                    @if (totalLocked == 0)
-                                    {
-                                        <span style="color: var(--stampd-muted);">None.</span>
-                                    }
-                                    else
-                                    {
-                                        <div style="display:flex; height:14px; border-radius:4px; overflow:hidden; background: var(--stampd-surface-alt);">
-                                            <div title="Email: @bc.Email.LockedOutCount"
-                                                 style="width:@(StackPct(bc.Email.LockedOutCount, totalLocked))%; background:#dc2626;"></div>
-                                            <div title="SMS: @bc.Sms.LockedOutCount"
-                                                 style="width:@(StackPct(bc.Sms.LockedOutCount, totalLocked))%; background:#f97316;"></div>
-                                            @* KBA lockout is always 0 today (no attempt log) — render the slice anyway for layout consistency when adopters add their own tracking. *@
-                                            <div title="KBA: @bc.Kba.LockedOutCount (no separate attempt log)"
-                                                 style="width:@(StackPct(bc.Kba.LockedOutCount, totalLocked))%; background:#a16207;"></div>
-                                        </div>
-                                        <div style="display:flex; gap:0.85rem; margin-top:0.3rem; font-size:0.75rem; color: var(--stampd-muted);">
-                                            <span><span style="display:inline-block; width:8px; height:8px; background:#dc2626; border-radius:2px; margin-right:3px;"></span> Email @bc.Email.LockedOutCount</span>
-                                            <span><span style="display:inline-block; width:8px; height:8px; background:#f97316; border-radius:2px; margin-right:3px;"></span> SMS @bc.Sms.LockedOutCount</span>
-                                            <span><span style="display:inline-block; width:8px; height:8px; background:#a16207; border-radius:2px; margin-right:3px;"></span> KBA @bc.Kba.LockedOutCount</span>
-                                        </div>
-                                    }
-                                </div>
-                            </div>
-                            <div style="font-size:0.7rem; color: var(--stampd-muted); margin-top:0.5rem; font-style:italic;">
-                                * KBA doesn't flow through the OTP store, so its initiate count is proxied from its verified count.
-                            </div>
-                        </div>
-                    }
-                </div>
-            }
-
-            <!-- Time-to-sign table -->
-            @if (_timeToSign is not null && _timeToSign.Items.Count > 0)
-            {
-                <div style="margin-top:1.25rem;">
-                    <div class="signer-field-label">Time-to-sign by template (top @_timeToSign.Take)</div>
-                    <div class="stampd-template-table" style="margin-top:0.5rem;">
-                        <div class="stampd-request-row stampd-template-head" style="grid-template-columns: 2.5fr 1fr 1fr 1fr;">
-                            <div>Template</div>
-                            <div>Signed</div>
-                            <div>Avg (min)</div>
-                            <div>Median (min)</div>
-                        </div>
-                        @foreach (var t in _timeToSign.Items)
-                        {
-                            <div class="stampd-request-row" style="grid-template-columns: 2.5fr 1fr 1fr 1fr;">
-                                <div>
-                                    <div style="font-weight:600;">@t.TemplateName</div>
-                                    @if (t.PreviousWindow is { } pw)
-                                    {
-                                        <div style="font-size:0.72rem; color: var(--stampd-muted); margin-top:2px;">
-                                            Prior: @pw.SignedCount signed, avg @pw.AvgMinutes.ToString("0.#")m, med @pw.MedianMinutes.ToString("0.#")m
-                                        </div>
-                                    }
-                                </div>
-                                <div>@t.SignedCount</div>
-                                <div>
-                                    @t.AvgMinutes.ToString("0.#")
-                                    @if (t.AvgMinutesDeltaPercent is { } adp)
-                                    {
-                                        @* Lower time-to-sign is better, so flip color sense. *@
-                                        <div style="font-size:0.72rem; margin-top:2px;">@RenderDeltaPercent(adp, lowerIsBetter: true)</div>
-                                    }
-                                </div>
-                                <div>
-                                    @t.MedianMinutes.ToString("0.#")
-                                    @if (t.MedianMinutesDeltaPercent is { } mdp)
-                                    {
-                                        <div style="font-size:0.72rem; margin-top:2px;">@RenderDeltaPercent(mdp, lowerIsBetter: true)</div>
-                                    }
-                                </div>
-                            </div>
-                        }
-                    </div>
-
-                    @* v2.2 #226 — per-role segmentation. Same table shape as per-template
-                       so the page reads consistently — admins toggle between two views of
-                       the same data. Aggregates across templates so a tenant with 5
-                       templates each having an "Approver" role sees one Approver row. *@
-                    @if (_timeToSign.ByRole is { Count: > 0 } byRole)
-                    {
-                        <div style="margin-top:1.25rem;">
-                            <div class="signer-field-label">Time-to-sign by role</div>
-                            <div class="stampd-template-table" style="margin-top:0.5rem;">
-                                <div class="stampd-request-row stampd-template-head" style="grid-template-columns: 2.5fr 1fr 1fr 1fr;">
-                                    <div>Role</div>
-                                    <div>Signed</div>
-                                    <div>Avg (min)</div>
-                                    <div>Median (min)</div>
-                                </div>
-                                @foreach (var r in byRole)
-                                {
-                                    <div class="stampd-request-row" style="grid-template-columns: 2.5fr 1fr 1fr 1fr;">
-                                        <div>
-                                            <div style="font-weight:600;">@r.RoleName</div>
-                                            @if (r.PreviousWindow is { } pwr)
-                                            {
-                                                <div style="font-size:0.72rem; color: var(--stampd-muted); margin-top:2px;">
-                                                    Prior: @pwr.SignedCount signed, avg @pwr.AvgMinutes.ToString("0.#")m, med @pwr.MedianMinutes.ToString("0.#")m
-                                                </div>
-                                            }
-                                        </div>
-                                        <div>@r.SignedCount</div>
-                                        <div>
-                                            @r.AvgMinutes.ToString("0.#")
-                                            @if (r.AvgMinutesDeltaPercent is { } radp)
-                                            {
-                                                <div style="font-size:0.72rem; margin-top:2px;">@RenderDeltaPercent(radp, lowerIsBetter: true)</div>
-                                            }
-                                        </div>
-                                        <div>
-                                            @r.MedianMinutes.ToString("0.#")
-                                            @if (r.MedianMinutesDeltaPercent is { } rmdp)
-                                            {
-                                                <div style="font-size:0.72rem; margin-top:2px;">@RenderDeltaPercent(rmdp, lowerIsBetter: true)</div>
-                                            }
-                                        </div>
-                                    </div>
-                                }
-                            </div>
-                        </div>
-                    }
-                </div>
-            }
-
-            @* v2.3 #231 — per-sender productivity. Mirrors the per-template /per-role
-               table shape so the page reads consistently. CreatedBy is the JWT sub,
-               so dev demos show the seeded admin/sender user IDs; production shows
-               whatever your IdP issues. *@
-            @if (_bySender is { Items.Count: > 0 })
-            {
-                <div style="margin-top:1.25rem;">
-                    <div class="signer-field-label">Per-sender productivity</div>
-                    <div class="stampd-template-table" style="margin-top:0.5rem;">
-                        <div class="stampd-request-row stampd-template-head" style="grid-template-columns: 2.5fr 1fr 1fr 1fr 1fr;">
-                            <div>Sender</div>
-                            <div>Dispatched</div>
-                            <div>Completed</div>
-                            <div>Completion %</div>
-                            <div>Avg time-to-sign (min)</div>
-                        </div>
-                        @foreach (var s in _bySender.Items)
-                        {
-                            <div class="stampd-request-row" style="grid-template-columns: 2.5fr 1fr 1fr 1fr 1fr;">
-                                <div style="font-weight:600;">@s.Sender</div>
-                                <div>@s.Dispatched</div>
-                                <div>@s.Completed @if (s.Voided > 0) { <span style="font-size:0.72rem; color: var(--stampd-muted);">(+@s.Voided voided)</span> }</div>
-                                <div>@s.CompletionRatePercent.ToString("0.#")%</div>
-                                <div>@(s.AvgTimeToSignMinutes == 0 ? "—" : s.AvgTimeToSignMinutes.ToString("0.#"))</div>
-                            </div>
-                        }
-                    </div>
-                </div>
-            }
-        </section>
-
-        @* v2.3 #230 — webhook delivery observability. Shows the queue depth and
-           recent failures so admins can spot a broken subscriber without opening
-           server logs. Read-only — the actual retry flow is handled by the outbox
-           worker; this widget just surfaces what the worker has been doing. *@
-        @if (_webhooks is not null)
-        {
-            <section class="stampd-card">
-                <h2 class="stampd-card-title">Webhook health</h2>
-                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:0.6rem; margin-top:0.6rem;">
-                    @{ var whTile = "background: var(--stampd-surface-alt); border:1px solid var(--stampd-border); border-radius:8px; padding:0.6rem 0.85rem;"; }
-                    <div style="@whTile">
-                        <div style="font-size:0.72rem; color: var(--stampd-muted); text-transform:uppercase; letter-spacing:0.05em;">Endpoints</div>
-                        <div style="font-size:1.2rem; font-weight:700;">@_webhooks.ActiveEndpoints / @_webhooks.TotalEndpoints</div>
-                        <div style="font-size:0.72rem; color: var(--stampd-muted);">active / total</div>
-                    </div>
-                    <div style="@whTile">
-                        <div style="font-size:0.72rem; color: var(--stampd-muted); text-transform:uppercase; letter-spacing:0.05em;">Degraded</div>
-                        <div style="font-size:1.2rem; font-weight:700; color:@(_webhooks.DegradedEndpoints == 0 ? "#16a34a" : "#dc2626");">@_webhooks.DegradedEndpoints</div>
-                        <div style="font-size:0.72rem; color: var(--stampd-muted);">consecutive failures &gt; 0</div>
-                    </div>
-                    <div style="@whTile">
-                        <div style="font-size:0.72rem; color: var(--stampd-muted); text-transform:uppercase; letter-spacing:0.05em;">Retry queue</div>
-                        <div style="font-size:1.2rem; font-weight:700;">@_webhooks.RetryingDeliveries</div>
-                        <div style="font-size:0.72rem; color: var(--stampd-muted);">@_webhooks.PendingDeliveries scheduled</div>
-                    </div>
-                    <div style="@whTile">
-                        <div style="font-size:0.72rem; color: var(--stampd-muted); text-transform:uppercase; letter-spacing:0.05em;">Failures (24h)</div>
-                        <div style="font-size:1.2rem; font-weight:700; color:@(_webhooks.FailuresLast24h == 0 ? "#16a34a" : "#dc2626");">@_webhooks.FailuresLast24h</div>
-                    </div>
-                </div>
-
-                @if (_webhooks.RecentFailures.Count > 0)
-                {
-                    <div style="margin-top:1rem;">
-                        <div class="signer-field-label">Recent failed deliveries</div>
-                        <div class="stampd-template-table" style="margin-top:0.5rem;">
-                            <div class="stampd-request-row stampd-template-head" style="grid-template-columns: 2.5fr 1.2fr 0.6fr 0.6fr 1.5fr 1.2fr;">
-                                <div>Endpoint</div>
-                                <div>Event</div>
-                                <div>Attempt</div>
-                                <div>HTTP</div>
-                                <div>Error</div>
-                                <div>Next retry</div>
-                            </div>
-                            @foreach (var f in _webhooks.RecentFailures)
-                            {
-                                <div class="stampd-request-row" style="grid-template-columns: 2.5fr 1.2fr 0.6fr 0.6fr 1.5fr 1.2fr;">
-                                    <div style="font-family:monospace; font-size:0.78rem;">@f.EndpointUrl</div>
-                                    <div style="font-size:0.82rem;">@f.EventType</div>
-                                    <div>@f.AttemptCount</div>
-                                    <div style="color:@(f.LastResponseStatus is null or >= 500 ? "#dc2626" : "var(--stampd-fg)");">
-                                        @(f.LastResponseStatus?.ToString() ?? "—")
-                                    </div>
-                                    <div style="font-size:0.78rem; color: var(--stampd-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="@f.LastErrorMessage">
-                                        @(f.LastErrorMessage ?? "—")
-                                    </div>
-                                    <div style="font-size:0.78rem; color: var(--stampd-muted);">
-                                        @f.NextAttemptAtUtc.LocalDateTime.ToString("yyyy-MM-dd HH:mm")
-                                    </div>
-                                </div>
-                            }
-                        </div>
-                    </div>
-                }
-                else
-                {
-                    <div style="font-size:0.85rem; color: var(--stampd-muted); margin-top:0.85rem;">
-                        No failed deliveries on file. Outbox queue is healthy.
-                    </div>
-                }
-            </section>
-        }
-
-        @* v2.3 #232 — audit-trail CSV export. Native <a download> avoids round-
-           tripping through Blazor; the WebApi streams the CSV directly to disk.
-           Filters mirror the audit read API: window in days, event type, actor.
-           Adding a UI-level filter editor here would be feature creep; the URL
-           query-string is the contract and savvy users can hand-edit. *@
-        <section class="stampd-card">
-            <h2 class="stampd-card-title">Audit-trail export</h2>
-            <p class="stampd-page-subtitle" style="margin-top:0.25rem;">
-                Stream the tenant's audit trail as CSV for compliance teams. The default
-                export covers the same window as the analytics widgets (@_analyticsDays days).
-                Increase the window via the selector above. For finer filters, call
-                <code>GET /api/admin/audit/export</code> with <code>?from=</code>, <code>?to=</code>,
-                <code>?eventType=</code> or <code>?actorUserId=</code>.
-            </p>
-            <div style="display:flex; align-items:center; gap:0.75rem; margin-top:0.6rem; flex-wrap:wrap;">
-                <button type="button" class="stampd-btn stampd-btn--primary"
-                        disabled="@_exporting"
-                        @onclick="() => ExportAuditAsync(_analyticsDays)">
-                    Download CSV (last @_analyticsDays days)
-                </button>
-                <button type="button" class="stampd-btn stampd-btn--ghost"
-                        disabled="@_exporting"
-                        @onclick="() => ExportAuditAsync(null)">
-                    Download all (capped at 250k rows)
-                </button>
-            </div>
-            @if (_exportError is not null)
-            {
-                <div class="signer-error" role="alert" style="margin-top:0.75rem;">@_exportError</div>
-            }
-        </section>
-
-        <!-- v2.0 Slice D — danger zone: cleanup demo data. Renders in any env but the
-             endpoint itself gates by environment + Stampd:Admin:AllowDemoCleanup. -->
-        <section class="stampd-card" style="border:1px solid #fecaca;">
-            <h2 class="stampd-card-title" style="color:#b91c1c;">Danger zone</h2>
-            <p class="stampd-page-subtitle" style="margin-top:0.25rem;">
-                Wipe all signing-workflow data (templates are preserved). Useful for
-                resetting the demo between walkthroughs. Audit trail, OTP challenges,
-                and webhook deliveries are deleted along with the signing requests.
-            </p>
-            @if (_cleanupResult is not null)
-            {
-                <div style="margin-top:0.75rem; padding:0.75rem 1rem; background: var(--stampd-surface-alt); border:1px solid var(--stampd-border); border-radius:8px; font-size:0.85rem;">
-                    <strong>Cleanup complete.</strong>
-                    Deleted: @_cleanupResult.SigningRequestsDeleted signing requests,
-                    @_cleanupResult.RecipientsDeleted recipients,
-                    @_cleanupResult.SignedDocumentsDeleted signed documents,
-                    @_cleanupResult.AuditEventsDeleted audit events,
-                    @_cleanupResult.OtpChallengesDeleted OTP challenges,
-                    @_cleanupResult.WebhookDeliveriesDeleted webhook deliveries.
-                </div>
-            }
-            @if (_cleanupError is not null)
-            {
-                <div class="signer-error" style="margin-top:0.75rem;">@_cleanupError</div>
-            }
-            <div style="display:flex; gap:0.5rem; margin-top:0.75rem;">
-                @if (!_confirmingCleanup)
-                {
-                    <button type="button"
-                            class="stampd-btn"
-                            style="background:#dc2626; color:white; border-color:#dc2626;"
-                            @onclick="() => _confirmingCleanup = true">
-                        Reset demo data
-                    </button>
-                }
-                else
-                {
-                    <span style="font-size:0.9rem; line-height:2.25rem;">
-                        Are you sure? This wipes every signing request in the tenant.
-                    </span>
-                    <button type="button"
-                            class="stampd-btn"
-                            style="background:#dc2626; color:white; border-color:#dc2626;"
-                            disabled="@_cleaning"
-                            @onclick="ConfirmCleanupAsync">
-                        @(_cleaning ? "Wiping…" : "Yes, delete everything")
-                    </button>
-                    <button type="button"
-                            class="stampd-btn stampd-btn--ghost"
-                            disabled="@_cleaning"
-                            @onclick="() => _confirmingCleanup = false">
-                        Cancel
-                    </button>
-                }
-            </div>
-        </section>
+        <DangerZoneCard OnDataReset="ReloadAfterCleanupAsync" />
     }
 </div>
 
@@ -708,16 +71,6 @@
     private AdminDashboardTrend? _trend;
     private AdminTopTemplates? _topTemplates;
     private bool _loading = true;
-
-    // v2.0 Slice D — danger zone state.
-    private bool _confirmingCleanup;
-    private bool _cleaning;
-    private CleanupDemoResult? _cleanupResult;
-    private string? _cleanupError;
-
-    // Audit export state.
-    private bool _exporting;
-    private string? _exportError;
 
     // v2.0 Slice C — analytics state. Single window selector drives all three
     // widgets so the dashboard reads as "the last N days" coherently.
@@ -731,44 +84,6 @@
     // so it's fetched once on load and on window change refetch is a no-op for it.
     private AdminWebhooksHealth? _webhooks;
     private AdminBySender? _bySender;
-
-    // v2.2 #223 — delta-chip rendering helpers.
-    //
-    // `delta` is a percent (e.g. 12.3 for +12.3%). `lowerIsBetter` flips the color
-    // semantics — for time-to-sign and lockout count, a negative delta is GOOD.
-    // We return a MarkupString so the caller can drop it inside another element
-    // without Blazor re-escaping the arrow glyphs.
-    private static MarkupString RenderDeltaPercent(double delta, bool lowerIsBetter)
-        => RenderDelta(delta, suffix: "%", lowerIsBetter);
-
-    private static MarkupString RenderDeltaPoints(double delta, bool lowerIsBetter)
-        => RenderDelta(delta, suffix: "pp", lowerIsBetter);
-
-    private static MarkupString RenderDelta(double delta, string suffix, bool lowerIsBetter)
-    {
-        if (delta == 0)
-        {
-            return new MarkupString("<span style=\"color: var(--stampd-muted); margin-left:0.35rem;\">—</span>");
-        }
-
-        var isImprovement = lowerIsBetter ? delta < 0 : delta > 0;
-        var color = isImprovement ? "#16a34a" : "#dc2626";
-        var arrow = delta > 0 ? "▲" : "▼";
-        var formatted = Math.Abs(delta).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
-        return new MarkupString(
-            $"<span style=\"color:{color}; margin-left:0.35rem; font-weight:600;\">{arrow} {formatted}{suffix}</span>");
-    }
-
-    /// <summary>
-    /// Stacked-bar width helper. Returns the percentage as an invariant-formatted
-    /// number with one decimal so the inline-style string stays culture-stable
-    /// across server locales (otherwise a comma decimal separator from a de-DE
-    /// locale would corrupt the CSS).
-    /// </summary>
-    private static string StackPct(int part, int total) =>
-        total == 0
-            ? "0"
-            : (part * 100.0 / total).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
 
     protected override async Task OnInitializedAsync()
     {
@@ -786,9 +101,8 @@
         _loading = true;
         try
         {
-            // Fan-out fetches: all six endpoints are independent, so kick them off
-            // in parallel and let the page wait on the slowest. Cold-cache load time
-            // halves (or sixths) vs. sequential.
+            // Fan-out fetches: all eight endpoints are independent, so kick them off
+            // in parallel and let the page wait on the slowest.
             var summaryTask = Api.GetAdminDashboardSummaryAsync(string.Empty, CancellationToken.None);
             var trendTask = Api.GetAdminDashboardTrendAsync(string.Empty, days: 30, CancellationToken.None);
             var topTask = Api.GetAdminTopTemplatesAsync(string.Empty, take: 5, CancellationToken.None);
@@ -813,14 +127,14 @@
         }
     }
 
-    /// <summary>Analytics window changed — refetch just the three analytics widgets.</summary>
+    /// <summary>Analytics window changed — refetch just the four windowed analytics widgets.</summary>
     private async Task OnAnalyticsWindowChangedAsync(ChangeEventArgs e)
     {
         if (!int.TryParse(e.Value?.ToString(), out var days) || days <= 0) return;
         _analyticsDays = days;
 
-        // Only refetch the three analytics widgets; the summary tiles + trend +
-        // top-templates above don't read from _analyticsDays, so leave them as-is.
+        // Only refetch the four windowed widgets; the summary tiles, trend, top
+        // templates and webhook health don't read from _analyticsDays, so leave them as-is.
         var funnelTask = Api.GetAdminFunnelAsync(string.Empty, _analyticsDays, CancellationToken.None);
         var ttsTask = Api.GetAdminTimeToSignAsync(string.Empty, _analyticsDays, take: 10, CancellationToken.None);
         var ivTask = Api.GetAdminIdentityVerificationAsync(string.Empty, _analyticsDays, CancellationToken.None);
@@ -828,63 +142,25 @@
         _funnel = await funnelTask;
         _timeToSign = await ttsTask;
         _iv = await ivTask;
+        _bySender = await bySenderTask;
     }
 
-    private static string CompletionChipClass(double pct) => pct switch
-    {
-        >= 80 => "stampd-chip--success",
-        >= 50 => "stampd-chip--accent",
-        _ => "stampd-chip--danger",
-    };
 
-    private async Task ConfirmCleanupAsync()
+    // Danger-zone reset. Hidden coupling with DangerZoneCard.OnDataReset: the card
+    // receives this as a plain Func<Task>, not an EventCallback, so invoking it does
+    // not render the page mid-reload. LoadAsync sets _loading while it fetches, and
+    // a render at that point would show "Loading…" and unmount the card (losing its
+    // cleanup result). Repaint once here instead, matching the single end-of-event
+    // render the in-page handler used to get.
+    private async Task ReloadAfterCleanupAsync()
     {
-        _cleaning = true;
-        _cleanupError = null;
         try
         {
-            var result = await Api.CleanupDemoAsync(string.Empty, CancellationToken.None);
-            if (result is null)
-            {
-                _cleanupError = "Cleanup endpoint rejected the call. In non-Development environments you must opt in via Stampd:Admin:AllowDemoCleanup=true.";
-            }
-            else
-            {
-                _cleanupResult = result;
-                // Refresh the dashboard so the tiles reflect the post-cleanup state.
-                await LoadAsync();
-            }
-        }
-        catch (Exception ex)
-        {
-            _cleanupError = ex.Message;
+            await LoadAsync();
         }
         finally
         {
-            _cleaning = false;
-            _confirmingCleanup = false;
-        }
-    }
-
-    private async Task ExportAuditAsync(int? days)
-    {
-        _exporting = true;
-        _exportError = null;
-        try
-        {
-            var csv = await Api.DownloadAuditExportAsync(string.Empty, days, CancellationToken.None);
-            if (csv is null)
-            {
-                _exportError = "The audit export could not be downloaded. Check that you are signed in as an Admin.";
-                return;
-            }
-
-            var suffix = days is > 0 ? $"last-{days}-days" : "all";
-            await Downloader.SaveAsync($"stampd-audit-{suffix}.csv", "text/csv", csv, CancellationToken.None);
-        }
-        finally
-        {
-            _exporting = false;
+            StateHasChanged();
         }
     }
 }
