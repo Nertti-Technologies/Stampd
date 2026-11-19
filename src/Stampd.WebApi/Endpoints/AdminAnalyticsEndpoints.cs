@@ -685,17 +685,12 @@ internal static class AdminAnalyticsEndpoints
     private static async Task<IdentityVerificationByChannel> ComputeIdentityVerificationByChannelAsync(
         StampdDbContext db, long fromMs, long toMsExclusive, CancellationToken ct)
     {
-        var from = DateTimeOffset.FromUnixTimeMilliseconds(fromMs);
-        var to = toMsExclusive == long.MaxValue
-            ? DateTimeOffset.MaxValue
-            : DateTimeOffset.FromUnixTimeMilliseconds(toMsExclusive);
-
         // Pull just the identifier + failed-attempts pair per OTP challenge — small
         // projection, .NET-side classification by ClassifyOtpChannel. Materialization
         // is bounded by the window so this stays cheap.
         const int lockoutThreshold = 5;
         var otpRows = await db.Set<Stampd.Infrastructure.Identity.OtpChallengeEntity>()
-            .Where(c => c.CreatedAtUtc >= from && c.CreatedAtUtc < to)
+            .Where(c => c.CreatedAtUtcEpochMs >= fromMs && c.CreatedAtUtcEpochMs < toMsExclusive)
             .Select(c => new { c.Identifier, c.FailedAttempts })
             .ToListAsync(ct)
             .ConfigureAwait(false);
@@ -792,11 +787,6 @@ internal static class AdminAnalyticsEndpoints
     private static async Task<IdentityVerificationCounts> ComputeIdentityVerificationAsync(
         StampdDbContext db, long fromMs, long toMsExclusive, CancellationToken ct)
     {
-        var from = DateTimeOffset.FromUnixTimeMilliseconds(fromMs);
-        var to = toMsExclusive == long.MaxValue
-            ? DateTimeOffset.MaxValue
-            : DateTimeOffset.FromUnixTimeMilliseconds(toMsExclusive);
-
         var requiredCount = await db.Recipients
             .Where(r => r.SigningRequest!.CreatedAtUtcEpochMs >= fromMs
                 && r.SigningRequest.CreatedAtUtcEpochMs < toMsExclusive
@@ -814,12 +804,12 @@ internal static class AdminAnalyticsEndpoints
 
         const int lockoutThreshold = 5;
         var lockedOutCount = await db.Set<Stampd.Infrastructure.Identity.OtpChallengeEntity>()
-            .Where(c => c.CreatedAtUtc >= from && c.CreatedAtUtc < to && c.FailedAttempts >= lockoutThreshold)
+            .Where(c => c.CreatedAtUtcEpochMs >= fromMs && c.CreatedAtUtcEpochMs < toMsExclusive && c.FailedAttempts >= lockoutThreshold)
             .CountAsync(ct)
             .ConfigureAwait(false);
 
         var initiatesCount = await db.Set<Stampd.Infrastructure.Identity.OtpChallengeEntity>()
-            .Where(c => c.CreatedAtUtc >= from && c.CreatedAtUtc < to)
+            .Where(c => c.CreatedAtUtcEpochMs >= fromMs && c.CreatedAtUtcEpochMs < toMsExclusive)
             .CountAsync(ct)
             .ConfigureAwait(false);
 
@@ -865,8 +855,8 @@ internal static class AdminAnalyticsEndpoints
         [FromServices] StampdDbContext db,
         CancellationToken ct)
     {
-        var now = DateTimeOffset.UtcNow;
-        var oneDayAgo = now.AddDays(-1);
+        var nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var oneDayAgoMs = DateTimeOffset.UtcNow.AddDays(-1).ToUnixTimeMilliseconds();
 
         // Endpoint-level snapshot. ConsecutiveFailures > 0 is the "this endpoint is
         // currently flapping" signal — we report it as "degraded" rather than
@@ -892,7 +882,7 @@ internal static class AdminAnalyticsEndpoints
         // means they've already failed at least once. Useful to distinguish a
         // healthy queue (lots of new deliveries) from a backed-up retry storm.
         var pendingDeliveries = await db.WebhookDeliveries
-            .Where(d => d.NextAttemptAtUtc > now)
+            .Where(d => d.NextAttemptAtUtcEpochMs > nowMs)
             .CountAsync(ct)
             .ConfigureAwait(false);
 
@@ -905,7 +895,7 @@ internal static class AdminAnalyticsEndpoints
         // exists with AttemptCount > 0 and a populated LastErrorMessage is what
         // "currently failed" looks like in this design.
         var failuresLast24h = await db.WebhookDeliveries
-            .Where(d => d.CreatedAtUtc >= oneDayAgo && d.AttemptCount > 0)
+            .Where(d => d.CreatedAtUtcEpochMs >= oneDayAgoMs && d.AttemptCount > 0)
             .CountAsync(ct)
             .ConfigureAwait(false);
 

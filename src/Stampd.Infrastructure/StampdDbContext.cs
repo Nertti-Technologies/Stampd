@@ -191,6 +191,8 @@ public class StampdDbContext : DbContext
                         }
 
                         auditEvent.TenantId = EnsureTenant(auditEvent.TenantId, currentTenant, crossTenantAllowed);
+                        // OccurredAtUtc is immutable, so the epoch shadow is only stamped here.
+                        auditEvent.OccurredAtUtcEpochMs = auditEvent.OccurredAtUtc.ToUnixTimeMilliseconds();
                     }
                     else if (entry.State == EntityState.Modified)
                     {
@@ -257,12 +259,18 @@ public class StampdDbContext : DbContext
                         }
 
                         delivery.TenantId = EnsureTenant(delivery.TenantId, currentTenant, crossTenantAllowed);
+                        delivery.CreatedAtUtcEpochMs = delivery.CreatedAtUtc.ToUnixTimeMilliseconds();
                     }
 
                     // NextAttemptAtUtc changes on every retry reschedule, so keep the
                     // epoch shadow in sync on both Added and Modified.
                     delivery.NextAttemptAtUtcEpochMs = delivery.NextAttemptAtUtc.ToUnixTimeMilliseconds();
 
+                    break;
+
+                case OtpChallengeEntity challenge when entry.State == EntityState.Added:
+                    // CreatedAtUtc is immutable, so the epoch shadow is only stamped here.
+                    challenge.CreatedAtUtcEpochMs = challenge.CreatedAtUtc.ToUnixTimeMilliseconds();
                     break;
 
                 case AdminScope scope:

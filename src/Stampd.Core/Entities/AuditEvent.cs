@@ -20,6 +20,13 @@ public sealed class AuditEvent
 
     public DateTimeOffset OccurredAtUtc { get; set; }
 
+    /// <summary>
+    /// Unix epoch milliseconds copy of <see cref="OccurredAtUtc"/>, stamped on insert.
+    /// Time-window filters and ordering use it because SQLite cannot compare or sort
+    /// DateTimeOffset values in SQL.
+    /// </summary>
+    public long OccurredAtUtcEpochMs { get; set; }
+
     // ----- Forensic context -----
     public string? IpAddress { get; set; }
     public string? UserAgent { get; set; }

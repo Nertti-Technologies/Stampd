@@ -16,6 +16,7 @@ internal sealed class AuditEventConfiguration : IEntityTypeConfiguration<AuditEv
         builder.Property(e => e.TenantId).IsRequired();
         builder.Property(e => e.EventType).IsRequired().HasConversion<int>();
         builder.Property(e => e.OccurredAtUtc).IsRequired();
+        builder.Property(e => e.OccurredAtUtcEpochMs).IsRequired();
         builder.Property(e => e.IpAddress).HasMaxLength(64);
         builder.Property(e => e.UserAgent).HasMaxLength(512);
         builder.Property(e => e.GeoCountry).HasMaxLength(64);
@@ -36,6 +37,9 @@ internal sealed class AuditEventConfiguration : IEntityTypeConfiguration<AuditEv
         builder.Property(e => e.ActorRole).HasMaxLength(64);
 
         builder.HasIndex(e => new { e.TenantId, e.OccurredAtUtc });
+        // Time-window export and per-request ordering run on the epoch column (SQLite).
+        builder.HasIndex(e => new { e.TenantId, e.OccurredAtUtcEpochMs });
+        builder.HasIndex(e => new { e.SigningRequestId, e.OccurredAtUtcEpochMs });
         builder.HasIndex(e => new { e.SigningRequestId, e.OccurredAtUtc });
         builder.HasIndex(e => new { e.TenantId, e.EventType });
         // Filtered index for "all admin actions in this tenant" — the most common

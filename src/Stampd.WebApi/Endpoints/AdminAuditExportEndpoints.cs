@@ -65,13 +65,17 @@ internal static class AdminAuditExportEndpoints
         // tenant header context.
         var query = db.AuditEvents.AsQueryable();
 
+        // Filter and order on the epoch column: SQLite cannot compare or sort
+        // DateTimeOffset in SQL.
         if (from is not null)
         {
-            query = query.Where(e => e.OccurredAtUtc >= from.Value);
+            var fromMs = from.Value.ToUnixTimeMilliseconds();
+            query = query.Where(e => e.OccurredAtUtcEpochMs >= fromMs);
         }
         if (to is not null)
         {
-            query = query.Where(e => e.OccurredAtUtc <= to.Value);
+            var toMs = to.Value.ToUnixTimeMilliseconds();
+            query = query.Where(e => e.OccurredAtUtcEpochMs <= toMs);
         }
         if (!string.IsNullOrWhiteSpace(eventType) &&
             Enum.TryParse<AuditEventType>(eventType, ignoreCase: true, out var parsedEventType))
@@ -85,8 +89,8 @@ internal static class AdminAuditExportEndpoints
         }
 
         // Order oldest-first for chronological export. Auditors expect time-ordered
-        // rows; the OccurredAtUtc index makes this index-covered.
-        query = query.OrderBy(e => e.OccurredAtUtc).Take(rowCap);
+        // rows; the (TenantId, OccurredAtUtcEpochMs) index covers this.
+        query = query.OrderBy(e => e.OccurredAtUtcEpochMs).Take(rowCap);
 
         // Compose the filename. Encoding the filter bounds makes the saved file
         // self-describing — auditors don't have to remember what window each
@@ -167,9 +171,19 @@ internal static class AdminAuditExportEndpoints
     /// and safer than conditional quoting (no commas / quotes / newlines in raw
     /// fields rule). Excel and pandas both round-trip this correctly.
     /// </summary>
-    private static string CsvField(string value)
+    /// <remarks>
+    /// Fields such as UserAgent come from callers. A cell starting with =, +, -, @, tab or
+    /// carriage return is run as a formula by spreadsheet apps, so it is prefixed with a
+    /// single quote, which they show as text.
+    /// </remarks>
+    internal static string CsvField(string value)
     {
         if (string.IsNullOrEmpty(value)) return "\"\"";
+        if (value[0] is '=' or '+' or '-' or '@' or '\t' or '\r')
+        {
+            value = "'" + value;
+        }
+
         var escaped = value.Replace("\"", "\"\"", StringComparison.Ordinal);
         return $"\"{escaped}\"";
     }

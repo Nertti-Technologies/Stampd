@@ -51,7 +51,7 @@ internal static class SigningRequestEndpoints
 
         var events = await db.AuditEvents
             .Where(e => e.SigningRequestId == id)
-            .OrderBy(e => e.OccurredAtUtc)
+            .OrderBy(e => e.OccurredAtUtcEpochMs)
             .Select(e => new
             {
                 e.Id,
