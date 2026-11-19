@@ -122,20 +122,32 @@ public sealed class EmailOtpProvider : IIdentityVerificationProvider
 
         if (challenge.ExpiresAtUtc < DateTimeOffset.UtcNow)
         {
-            await _store.RemoveAsync(verificationId, cancellationToken).ConfigureAwait(false);
+            // The row stays until the sweep so it keeps counting towards the initiate
+            // rate limit (CountInitiatesSinceAsync).
             return new IdentityVerificationResult(Succeeded: false, FailureReason: "Verification code expired.");
         }
 
-        // v1.3 #136 — lockout gate. If the challenge has already been incremented past
-        // the configured max (a parallel verify request burned it through), kill it now
-        // before we even compare the code. Defensive against the race where two verify
-        // POSTs land between the previous increment and the previous lockout-removal.
-        if (_options.MaxFailedAttempts > 0 && challenge.FailedAttempts >= _options.MaxFailedAttempts)
+        // Reserve this attempt before comparing the code. The store increments
+        // atomically, so parallel requests each take their own slot and at most
+        // MaxFailedAttempts codes are ever compared against one challenge. A
+        // locked-out challenge also stays in the store so it keeps counting towards
+        // the initiate rate limit.
+        var attempts = 0;
+        if (_options.MaxFailedAttempts > 0)
         {
-            await _store.RemoveAsync(verificationId, cancellationToken).ConfigureAwait(false);
-            return new IdentityVerificationResult(
-                Succeeded: false,
-                FailureReason: "Too many failed attempts. Please request a new verification code.");
+            attempts = await _store
+                .IncrementFailedAttemptsAsync(verificationId, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (attempts < 0)
+            {
+                return new IdentityVerificationResult(Succeeded: false, FailureReason: "Verification not found or expired.");
+            }
+
+            if (attempts > _options.MaxFailedAttempts)
+            {
+                return TooManyAttempts();
+            }
         }
 
         bool matched;
@@ -157,27 +169,19 @@ public sealed class EmailOtpProvider : IIdentityVerificationProvider
 
         if (!matched)
         {
-            // v1.3 #136 — increment failed-attempt counter. When the new count hits the
-            // threshold, remove the challenge so the next verify against this id returns
-            // "expired/not found" rather than a continued misleading "incorrect code".
-            var newCount = await _store
-                .IncrementFailedAttemptsAsync(verificationId, cancellationToken)
-                .ConfigureAwait(false);
-
-            if (_options.MaxFailedAttempts > 0 && newCount >= _options.MaxFailedAttempts)
-            {
-                await _store.RemoveAsync(verificationId, cancellationToken).ConfigureAwait(false);
-                return new IdentityVerificationResult(
-                    Succeeded: false,
-                    FailureReason: "Too many failed attempts. Please request a new verification code.");
-            }
-
-            return new IdentityVerificationResult(Succeeded: false, FailureReason: "Incorrect code.");
+            return _options.MaxFailedAttempts > 0 && attempts >= _options.MaxFailedAttempts
+                ? TooManyAttempts()
+                : new IdentityVerificationResult(Succeeded: false, FailureReason: "Incorrect code.");
         }
 
         await _store.RemoveAsync(verificationId, cancellationToken).ConfigureAwait(false);
         return new IdentityVerificationResult(Succeeded: true);
     }
+
+    private static IdentityVerificationResult TooManyAttempts()
+        => new(
+            Succeeded: false,
+            FailureReason: "Too many failed attempts. Please request a new verification code.");
 
     private static bool VerifySentinelEnvelope(string envelopeCode, string response)
     {
@@ -325,9 +329,9 @@ public sealed class EmailOtpOptions
     public TimeSpan ChallengeLifetime { get; set; } = TimeSpan.FromMinutes(10);
 
     /// <summary>
-    /// v1.3 #136 — maximum incorrect verify attempts against a single challenge before
-    /// it's killed and the recipient must request a new code. Defaults to 5. Set to 0
-    /// to disable lockout (NOT recommended for production).
+    /// v1.3 #136 — maximum verify attempts against a single challenge. Once they are
+    /// used up no further code is compared and the recipient must request a new code.
+    /// Defaults to 5. Set to 0 to disable lockout (NOT recommended for production).
     /// </summary>
     public int MaxFailedAttempts { get; set; } = 5;
 
