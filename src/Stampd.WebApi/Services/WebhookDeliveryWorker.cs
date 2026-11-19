@@ -19,7 +19,14 @@ internal sealed class WebhookDeliveryWorker : BackgroundService
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(10);
-    private const int MaxAttempts = 12; // ~2 days at 2^n seconds backoff capped at 1h
+
+    /// <summary>
+    /// How long a delivery is retried, measured from when it was queued. Two days lets a
+    /// receiver that is down over a weekend day still get its events. With the backoff
+    /// below (2^n seconds, capped at 1 hour) that is about 58 attempts: 11 doubling
+    /// retries in the first ~68 minutes (2 + 4 + … + 2048 = 4,094 s), then hourly.
+    /// </summary>
+    internal static readonly TimeSpan RetryWindow = TimeSpan.FromDays(2);
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IHttpClientFactory _httpClientFactory;
@@ -151,7 +158,9 @@ internal sealed class WebhookDeliveryWorker : BackgroundService
         endpoint.LastDeliveryAttemptAtUtc = DateTimeOffset.UtcNow;
         endpoint.ConsecutiveFailures++;
 
-        if (delivery.AttemptCount >= MaxAttempts)
+        var now = DateTimeOffset.UtcNow;
+        var next = now.Add(BackoffAfter(delivery.AttemptCount));
+        if (next - delivery.CreatedAtUtc > RetryWindow)
         {
             _logger.LogWarning(
                 "Webhook delivery {DeliveryId} to endpoint {EndpointId} gave up after {Attempts} attempts.",
@@ -160,10 +169,12 @@ internal sealed class WebhookDeliveryWorker : BackgroundService
             return;
         }
 
-        // Exponential backoff with cap: 2s, 4s, 8s, ..., capped at 1h.
-        var backoff = TimeSpan.FromSeconds(Math.Min(3600, Math.Pow(2, delivery.AttemptCount)));
-        delivery.NextAttemptAtUtc = DateTimeOffset.UtcNow.Add(backoff);
+        delivery.NextAttemptAtUtc = next;
     }
+
+    /// <summary>Exponential backoff with cap: 2s, 4s, 8s, ..., capped at 1h.</summary>
+    internal static TimeSpan BackoffAfter(int attemptCount)
+        => TimeSpan.FromSeconds(Math.Min(3600, Math.Pow(2, Math.Min(attemptCount, 12))));
 
     private static string ComputeSignature(string secret, string payload)
     {

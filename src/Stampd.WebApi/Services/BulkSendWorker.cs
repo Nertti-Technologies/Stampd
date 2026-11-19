@@ -100,33 +100,64 @@ internal sealed class BulkSendWorker : BackgroundService
 
             var workflow = scope.ServiceProvider.GetRequiredService<SigningWorkflowService>();
             var row = rows[0];
-            try
-            {
-                await workflow.DispatchAsync(
-                    new CreateSigningRequestBody(
-                        DocumentTemplateId: job.DocumentTemplateId,
-                        Subject: job.Subject,
-                        Message: job.Message,
-                        ExpiresAtUtc: row.ExpiresAtUtc,
-                        Recipients: row.Recipients
-                            .Select(r => new RecipientAssignment(r.RoleName, r.Email, r.Name))
-                            .ToArray()),
-                    ct).ConfigureAwait(false);
 
+            // Rows leave the front of PendingRowsJson only when progress is saved, so the
+            // processed-row count is a stable index for the row at the front.
+            var rowIndex = job.CompletedRows + job.FailedRows;
+            var rowKey = (job.Id, rowIndex);
+
+            if (await IsDispatchedAsync(db, job.Id, rowIndex, ct).ConfigureAwait(false))
+            {
+                // The request was created, but the process stopped before this row's
+                // progress was saved. Count it without dispatching (and emailing) again.
                 job.CompletedRows++;
             }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            else
             {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                job.FailedRows++;
-                RecordFailure(job, rowIndex: job.CompletedRows + job.FailedRows - 1, ex.Message);
-                _logger.LogWarning(ex,
-                    "Row {Row} of bulk job {JobId} failed; continuing.",
-                    job.CompletedRows + job.FailedRows,
-                    job.Id);
+                try
+                {
+                    await workflow.DispatchAsync(
+                        new CreateSigningRequestBody(
+                            DocumentTemplateId: job.DocumentTemplateId,
+                            Subject: job.Subject,
+                            Message: job.Message,
+                            ExpiresAtUtc: row.ExpiresAtUtc,
+                            Recipients: row.Recipients
+                                .Select(r => new RecipientAssignment(r.RoleName, r.Email, r.Name))
+                                .ToArray()),
+                        ct,
+                        rowKey).ConfigureAwait(false);
+
+                    job.CompletedRows++;
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    // A failed save leaves the half-built request tracked; drop it so the
+                    // job's progress below saves on its own.
+                    db.ChangeTracker.Clear();
+                    job = await db.BulkSendJobs
+                        .FirstAsync(j => j.Id == candidate.Value.JobId, ct)
+                        .ConfigureAwait(false);
+
+                    if (await IsDispatchedAsync(db, job.Id, rowIndex, ct).ConfigureAwait(false))
+                    {
+                        // Another worker dispatched this row first; the unique index refused ours.
+                        job.CompletedRows++;
+                    }
+                    else
+                    {
+                        job.FailedRows++;
+                        RecordFailure(job, rowIndex, ex.Message);
+                        _logger.LogWarning(ex,
+                            "Row {Row} of bulk job {JobId} failed; continuing.",
+                            rowIndex + 1,
+                            job.Id);
+                    }
+                }
             }
 
             rows.RemoveAt(0);
@@ -141,6 +172,11 @@ internal sealed class BulkSendWorker : BackgroundService
             return true;
         }
     }
+
+    private static Task<bool> IsDispatchedAsync(StampdDbContext db, Guid jobId, int rowIndex, CancellationToken ct)
+        => db.SigningRequests.AnyAsync(
+            r => r.BulkSendJobId == jobId && r.BulkSendRowIndex == rowIndex,
+            ct);
 
     private async Task<(Guid JobId, Guid TenantId)?> FindNextJobAsync(CancellationToken ct)
     {

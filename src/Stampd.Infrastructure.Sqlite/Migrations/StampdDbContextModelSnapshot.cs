@@ -391,6 +391,12 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid?>("BulkSendJobId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("BulkSendRowIndex")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTimeOffset?>("CompletedAtUtc")
                         .HasColumnType("TEXT");
 
@@ -453,6 +459,9 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("DocumentTemplateId");
+
+                    b.HasIndex("BulkSendJobId", "BulkSendRowIndex")
+                        .IsUnique();
 
                     b.HasIndex("TenantId", "CompletedAtUtcEpochMs");
 

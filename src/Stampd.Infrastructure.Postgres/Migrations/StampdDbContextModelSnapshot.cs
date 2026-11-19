@@ -396,6 +396,12 @@ namespace Stampd.Infrastructure.Postgres.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("BulkSendJobId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("BulkSendRowIndex")
+                        .HasColumnType("integer");
+
                     b.Property<DateTimeOffset?>("CompletedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -458,6 +464,9 @@ namespace Stampd.Infrastructure.Postgres.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("DocumentTemplateId");
+
+                    b.HasIndex("BulkSendJobId", "BulkSendRowIndex")
+                        .IsUnique();
 
                     b.HasIndex("TenantId", "CompletedAtUtcEpochMs");
 

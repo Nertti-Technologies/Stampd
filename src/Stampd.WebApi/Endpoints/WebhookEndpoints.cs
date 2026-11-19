@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 using Stampd.Core.Entities;
 using Stampd.Infrastructure;
+using Stampd.WebApi.Services;
 using Stampd.WebApi.Auth;
 
 namespace Stampd.WebApi.Endpoints;
@@ -58,6 +59,7 @@ internal static class WebhookEndpoints
     private static async Task<IResult> CreateAsync(
         [FromBody] CreateWebhookBody body,
         [FromServices] StampdDbContext db,
+        [FromServices] WebhookTargetPolicy targetPolicy,
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(body.Url)
@@ -67,6 +69,11 @@ internal static class WebhookEndpoints
             return Results.Problem(
                 title: "Url must be an absolute http(s) URI.",
                 statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        if (await targetPolicy.ValidateAsync(parsed, ct).ConfigureAwait(false) is { } refused)
+        {
+            return Results.Problem(title: refused, statusCode: StatusCodes.Status400BadRequest);
         }
 
         var secret = GenerateSecret();

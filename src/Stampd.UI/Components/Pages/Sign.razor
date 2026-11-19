@@ -1,5 +1,7 @@
 @page "/sign/{AccessToken}"
-@rendermode InteractiveServer
+@* No prerender: a prerender pass calls the API from a plain HTTP GET, so link scanners
+   in mail filters would mark the recipient "Viewed" without a person opening the link. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inject StampdApiClient Api
 @* @inject NavigationManager Navigation *@
 @inject IJSRuntime JS

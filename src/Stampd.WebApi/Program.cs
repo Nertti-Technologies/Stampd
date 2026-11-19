@@ -397,7 +397,17 @@ builder.Services.AddEmailOtpIdentityVerification(opts =>
 // poll the DB; both gracefully cross-tenant via TenantScope.
 builder.Services.AddHostedService<BulkSendWorker>();
 builder.Services.AddHostedService<WebhookDeliveryWorker>();
-builder.Services.AddHttpClient(nameof(WebhookDeliveryWorker));
+builder.Services.AddOptions<WebhookTargetOptions>().Bind(builder.Configuration.GetSection("Stampd:Webhooks"));
+builder.Services.AddSingleton<WebhookTargetPolicy>();
+// Every connection the delivery worker opens goes through WebhookTargetPolicy, so a
+// webhook can't reach internal addresses even if its host's DNS changes after
+// registration. Redirects are not followed: a redirect could lead to an internal address.
+builder.Services.AddHttpClient(nameof(WebhookDeliveryWorker))
+    .ConfigurePrimaryHttpMessageHandler(sp => new SocketsHttpHandler
+    {
+        AllowAutoRedirect = false,
+        ConnectCallback = sp.GetRequiredService<WebhookTargetPolicy>().ConnectAsync,
+    });
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
