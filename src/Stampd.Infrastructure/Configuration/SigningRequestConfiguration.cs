@@ -31,6 +31,12 @@ internal sealed class SigningRequestConfiguration : IEntityTypeConfiguration<Sig
         builder.HasIndex(r => new { r.TenantId, r.Status });
         builder.HasIndex(r => new { r.TenantId, r.CreatedAtUtc });
         builder.HasIndex(r => r.DocumentTemplateId);
+
+        // One request per bulk-send row: BulkSendWorker relies on this to skip a row it
+        // already dispatched before a crash. Both columns are null outside bulk send;
+        // SQL Server's provider filters nulls out of the index automatically, and Sqlite
+        // and Postgres treat nulls as distinct.
+        builder.HasIndex(r => new { r.BulkSendJobId, r.BulkSendRowIndex }).IsUnique();
         // GET /api/signing-requests orders newest-first by this epoch column. The
         // (TenantId, CreatedAtUtcEpochMs) composite serves the optional ?templateId=
         // filter as well — DocumentTemplateId is correlated with TenantId.

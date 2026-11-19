@@ -1,3 +1,48 @@
+# Migrating Stampd v3.1.x → v3.2.0 (unreleased)
+
+v3.2.0 fixes signing-request lifecycle and delivery defects. Apply the V18 migration. Several fixes change behaviour that integrations may have relied on, so review the changes below.
+
+## TL;DR
+
+1. Apply the V18 migration on every database provider. It adds the nullable `SigningRequests.BulkSendJobId` and `BulkSendRowIndex` columns with a unique index.
+2. If any webhook posts to an internal host, list that host in `Stampd:Webhooks:AllowedPrivateHosts`.
+
+## Behaviour changes
+
+### 1. Closed requests return 410 on every recipient link
+
+- When a request is Voided, Expired or Declined, every `/api/sign/{accessToken}` route returns **410 Gone**: view, document download, verification codes and submit.
+- Before 3.2, a voided request's link still showed the document and sent verification codes. Submit returned 409.
+
+### 2. `ExpiresAtUtc` is enforced
+
+- A request whose `ExpiresAtUtc` has passed becomes `Expired` the first time a recipient link is used after the deadline. Recipients who have not signed become `Expired`.
+- This applies to existing requests too. Live requests already past their date expire on next use.
+- New webhook event: `SigningRequestExpired`. Endpoints with an empty `SubscribedEvents` (all events) start receiving it.
+
+### 3. Webhook targets
+
+- `POST /api/webhooks` refuses URLs that point at internal addresses, with **400**. These are loopback, link-local (including cloud metadata), private, carrier-grade NAT, unique-local and multicast addresses. Host names are resolved, so a name pointing at an internal address is refused too.
+- Delivery checks the address actually dialled on every attempt, so a DNS change after registration can't redirect a webhook inside.
+- Delivery no longer follows HTTP redirects. A 3xx response counts as a failed attempt.
+- To allow an internal receiver, list its host name in `Stampd:Webhooks:AllowedPrivateHosts`.
+- Retries now run for 2 days from when the event was queued: about 58 attempts, backing off to hourly. Before 3.2 they stopped after about 68 minutes.
+
+### 4. Sequential signing emails
+
+- When one routing slot finishes, the recipients in the next slot now get their invitation email. Before 3.2 only the first slot was emailed.
+
+### 5. Signature images are checked at submit
+
+- An `imageBase64` field value must be base64 PNG or JPEG, at most 1 MiB decoded. Anything else is refused with **400** at that recipient's submit.
+- Before 3.2, a bad image was accepted and then failed the whole request when it was finalised.
+
+### 6. Bulk send
+
+- Each request created by bulk send records its job and row. A row that was dispatched just before a crash is not dispatched or emailed again.
+
+---
+
 # Migrating Stampd v3.0.x → v3.1.0
 
 v3.1.0 changes how the WebApi decides a request's tenant, which roles may change data, and who receives recipient access URLs. No public package API is removed. Apply the V17 migration and review the changes below before upgrading.

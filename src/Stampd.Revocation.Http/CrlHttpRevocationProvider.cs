@@ -71,8 +71,10 @@ public sealed class CrlHttpRevocationProvider : IRevocationProvider
             {
                 _logger.LogDebug(ex, "CRL fetch from {Url} failed.", url);
             }
-            catch (TaskCanceledException ex)
+            catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
             {
+                // HttpClient timeout. A cancellation by the caller is not caught: it must
+                // stop the seal rather than produce a signature without revocation data.
                 _logger.LogDebug(ex, "CRL fetch from {Url} timed out.", url);
             }
         }

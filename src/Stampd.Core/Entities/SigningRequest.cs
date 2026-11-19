@@ -32,6 +32,16 @@ public sealed class SigningRequest
     /// </summary>
     public string? NotifyEmail { get; set; }
 
+    /// <summary>
+    /// The bulk-send job that created this request, with <see cref="BulkSendRowIndex"/>.
+    /// Together they are unique, so a job row that is retried after a crash is not
+    /// dispatched twice. Null for requests not created by bulk send.
+    /// </summary>
+    public Guid? BulkSendJobId { get; set; }
+
+    /// <summary>Zero-based row of <see cref="BulkSendJobId"/> this request was created from.</summary>
+    public int? BulkSendRowIndex { get; set; }
+
     public SigningRequestStatus Status { get; set; }
 
     public DateTimeOffset CreatedAtUtc { get; set; }

@@ -396,6 +396,12 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("BulkSendJobId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("BulkSendRowIndex")
+                        .HasColumnType("int");
+
                     b.Property<DateTimeOffset?>("CompletedAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -458,6 +464,10 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("DocumentTemplateId");
+
+                    b.HasIndex("BulkSendJobId", "BulkSendRowIndex")
+                        .IsUnique()
+                        .HasFilter("[BulkSendJobId] IS NOT NULL AND [BulkSendRowIndex] IS NOT NULL");
 
                     b.HasIndex("TenantId", "CompletedAtUtcEpochMs");
 

@@ -3,6 +3,7 @@
 // Communication with Blazor:
 //   render(host, base64, dotnetRef)           — bootstrap; sets up event handlers
 //   syncOverlays(host, fields, selectedIndex) — redraw all field overlays
+//   detach(host)                              — remove the document keydown listener
 //
 // JS → Blazor invocations on dotnetRef:
 //   OnPageClick(pageNo, xPct, yPct)        — empty-page click; place a new field
@@ -95,10 +96,11 @@ export async function render(host, base64Pdf, dotnetRef) {
         await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
     }
 
-    // Global keyboard: Delete removes selection, Esc deselects, arrows nudge.
-    if (!host._stampdKeysBound) {
-        host._stampdKeysBound = true;
-        document.addEventListener('keydown', async (e) => {
+    // Global keyboard: Delete removes selection, Esc deselects, arrows nudge. The
+    // listener lives on document, so it outlives the page unless detach() removes it;
+    // DesignerNew.razor calls detach() when it is disposed.
+    if (!host._stampdKeyHandler) {
+        host._stampdKeyHandler = async (e) => {
             const state = hostState.get(host);
             if (!state || state.selectedIndex === null) return;
             // Ignore key events when focus is on a text input (e.g. role name).
@@ -126,8 +128,18 @@ export async function render(host, base64Pdf, dotnetRef) {
                 const newY = clamp(snap(f.y + dy), 0, 100 - f.height);
                 await state.dotnetRef.invokeMethodAsync('OnFieldMoved', idx, newX, newY);
             }
-        });
+        };
+        document.addEventListener('keydown', host._stampdKeyHandler);
     }
+}
+
+export function detach(host) {
+    if (!host) return;
+    if (host._stampdKeyHandler) {
+        document.removeEventListener('keydown', host._stampdKeyHandler);
+        host._stampdKeyHandler = null;
+    }
+    hostState.delete(host);
 }
 
 export function syncOverlays(host, fields, selectedIndex) {

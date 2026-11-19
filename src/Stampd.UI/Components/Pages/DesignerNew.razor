@@ -593,6 +593,9 @@
         {
             try
             {
+                // The designer's keydown listener is on document; remove it before the
+                // module goes, or it keeps calling into this disposed component.
+                await _canvas.InvokeVoidAsync("detach", _canvasHost);
                 await _canvas.DisposeAsync();
             }
             catch (JSDisconnectedException)

@@ -12,9 +12,10 @@ export function attach(canvas, dotnetRef) {
     ctx.lineCap = 'round';
     ctx.strokeStyle = '#111';
 
+    // `dirty` lives in the per-canvas state so clear() can reset it.
+    const state = { ctx, dirty: false };
     let drawing = false;
     let last = null;
-    let dirty = false;
 
     function pointerPos(e) {
         const rect = canvas.getBoundingClientRect();
@@ -40,14 +41,14 @@ export function attach(canvas, dotnetRef) {
         ctx.lineTo(p.x, p.y);
         ctx.stroke();
         last = p;
-        dirty = true;
+        state.dirty = true;
     }
 
     async function end() {
         const wasDrawing = drawing;
         drawing = false;
         last = null;
-        if (wasDrawing && dirty && dotnetRef) {
+        if (wasDrawing && state.dirty && dotnetRef) {
             try {
                 await dotnetRef.invokeMethodAsync('OnSignatureStroke');
             } catch (_) { /* circuit may be reconnecting */ }
@@ -59,16 +60,19 @@ export function attach(canvas, dotnetRef) {
     canvas.addEventListener('pointerup', end);
     canvas.addEventListener('pointerleave', end);
 
-    attached.set(canvas, { ctx });
+    attached.set(canvas, state);
 }
 
 export function clear(canvas) {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const state = attached.get(canvas);
+    if (state) state.dirty = false;
 }
 
 export function toBase64(canvas) {
-    if (!canvas) return '';
+    // Never export a canvas with no strokes on it: the caller treats '' as "no signature".
+    if (!canvas || !attached.get(canvas)?.dirty) return '';
     return canvas.toDataURL('image/png');
 }

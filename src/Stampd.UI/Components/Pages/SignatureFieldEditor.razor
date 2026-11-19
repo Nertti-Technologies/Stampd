@@ -107,6 +107,11 @@
     {
         if (_signatureModule is null) return;
         var dataUrl = await _signatureModule.InvokeAsync<string>("toBase64", _canvasElement);
+        if (string.IsNullOrEmpty(dataUrl))
+        {
+            return; // Pad has no strokes (e.g. a tap right after Clear): nothing to commit.
+        }
+
         var b64 = dataUrl.Contains(',') ? dataUrl[(dataUrl.IndexOf(',') + 1)..] : dataUrl;
         _signatureCaptured = true;
         await OnValueChanged.InvokeAsync(new ApiFieldValue(ImageBase64: b64));

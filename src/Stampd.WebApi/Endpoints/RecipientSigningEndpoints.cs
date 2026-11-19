@@ -55,6 +55,11 @@ internal static class RecipientSigningEndpoints
             return Results.NotFound();
         }
 
+        if (await ClosedAsync(pair.Value.Request, workflow, ct).ConfigureAwait(false) is { } closed)
+        {
+            return closed;
+        }
+
         var (request, recipient) = pair.Value;
 
         // Recipient must be in a state where viewing the document is meaningful. We don't
@@ -92,6 +97,11 @@ internal static class RecipientSigningEndpoints
         if (pair is null)
         {
             return Results.NotFound();
+        }
+
+        if (await ClosedAsync(pair.Value.Request, workflow, ct).ConfigureAwait(false) is { } closed)
+        {
+            return closed;
         }
 
         var (request, recipient) = pair.Value;
@@ -146,6 +156,11 @@ internal static class RecipientSigningEndpoints
             return Results.NotFound();
         }
 
+        if (await ClosedAsync(pair.Value.Request, workflow, ct).ConfigureAwait(false) is { } closed)
+        {
+            return closed;
+        }
+
         var (request, recipient) = pair.Value;
 
         if (recipient.Status == RecipientStatus.Signed)
@@ -158,11 +173,9 @@ internal static class RecipientSigningEndpoints
             return Results.Problem("It's not your turn to sign yet.", statusCode: 409);
         }
 
-        if (request.Status is SigningRequestStatus.Declined or SigningRequestStatus.Voided or SigningRequestStatus.Expired)
+        if (ValidateFieldValues(body.FieldValues) is { } invalid)
         {
-            return Results.Problem(
-                $"This signing request is in terminal state {request.Status} and can no longer accept signatures.",
-                statusCode: 409);
+            return Results.Problem(invalid, statusCode: 400);
         }
 
         // Identity-verification gate. If the recipient's role requires it and they haven't
@@ -197,6 +210,11 @@ internal static class RecipientSigningEndpoints
         if (pair is null)
         {
             return Results.NotFound();
+        }
+
+        if (await ClosedAsync(pair.Value.Request, workflow, ct).ConfigureAwait(false) is { } closed)
+        {
+            return closed;
         }
 
         var (request, recipient) = pair.Value;
@@ -245,6 +263,11 @@ internal static class RecipientSigningEndpoints
         if (pair is null)
         {
             return Results.NotFound();
+        }
+
+        if (await ClosedAsync(pair.Value.Request, workflow, ct).ConfigureAwait(false) is { } closed)
+        {
+            return closed;
         }
 
         var (request, recipient) = pair.Value;
@@ -329,6 +352,11 @@ internal static class RecipientSigningEndpoints
             return Results.NotFound();
         }
 
+        if (await ClosedAsync(pair.Value.Request, workflow, ct).ConfigureAwait(false) is { } closed)
+        {
+            return closed;
+        }
+
         var (_, recipient) = pair.Value;
 
         if (recipient.Role?.RequiresIdentityVerification != true)
@@ -377,6 +405,87 @@ internal static class RecipientSigningEndpoints
 
         return field.AssignedRoleId == recipient.RoleId;
     }
+
+    /// <summary>
+    /// 410 Gone once a request is Voided, Expired or Declined: the link no longer shows
+    /// the document, accepts signatures or sends verification codes. Expires a request
+    /// whose deadline has passed first, so the deadline holds from the first use after it.
+    /// </summary>
+    private static async Task<IResult?> ClosedAsync(
+        SigningRequest request,
+        SigningWorkflowService workflow,
+        CancellationToken ct)
+    {
+        await workflow.ExpireIfDueAsync(request, ct).ConfigureAwait(false);
+
+        return request.Status is SigningRequestStatus.Voided
+            or SigningRequestStatus.Expired
+            or SigningRequestStatus.Declined
+            ? Results.Problem(
+                $"This signing request is {request.Status} and is no longer available.",
+                statusCode: StatusCodes.Status410Gone)
+            : null;
+    }
+
+    /// <summary>
+    /// Largest decoded signature image accepted. An estimate, not a measured limit: a
+    /// browser signature-pad PNG is typically tens of KB, so 1 MiB leaves wide headroom
+    /// while stopping a single field from bloating the sealed PDF.
+    /// </summary>
+    internal const int MaxSignatureImageBytes = 1024 * 1024;
+
+    /// <summary>
+    /// Checks submitted values at the boundary, so a bad image is refused at this
+    /// recipient's submit instead of failing finalisation for everyone later. Images
+    /// must be base64 PNG or JPEG (the formats the engine draws). Returns an error
+    /// message, or null when valid.
+    /// </summary>
+    internal static string? ValidateFieldValues(IReadOnlyDictionary<int, ApiFieldValue>? values)
+    {
+        if (values is null)
+        {
+            return null;
+        }
+
+        foreach (var (index, value) in values)
+        {
+            if (value?.ImageBase64 is not { Length: > 0 } b64)
+            {
+                continue;
+            }
+
+            // Base64 is 4 chars per 3 bytes. This bounds the buffer before decoding; it
+            // rounds up to whole 3-byte groups, so the exact size is checked after.
+            var tooLarge = $"Field {index}: the image is larger than {MaxSignatureImageBytes / 1024} KB.";
+            if (b64.Length > (MaxSignatureImageBytes + 2) / 3 * 4)
+            {
+                return tooLarge;
+            }
+
+            var buffer = new byte[b64.Length * 3 / 4];
+            if (!Convert.TryFromBase64String(b64, buffer, out var written))
+            {
+                return $"Field {index}: the image is not valid base64.";
+            }
+
+            if (written > MaxSignatureImageBytes)
+            {
+                return tooLarge;
+            }
+
+            var bytes = buffer.AsSpan(0, written);
+            if (!bytes.StartsWith(PngSignature) && !bytes.StartsWith(JpegSignature))
+            {
+                return $"Field {index}: the image must be a PNG or JPEG.";
+            }
+        }
+
+        return null;
+    }
+
+    private static ReadOnlySpan<byte> PngSignature => [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+
+    private static ReadOnlySpan<byte> JpegSignature => [0xFF, 0xD8, 0xFF];
 
     private static RecipientSigningView BuildView(
         SigningRequest request,

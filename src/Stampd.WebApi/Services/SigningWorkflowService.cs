@@ -63,9 +63,16 @@ public sealed class SigningWorkflowService
     }
 
     /// <summary>Creates a new SigningRequest from a template + recipient assignments, marks it Sent.</summary>
+    /// <param name="body">The request to create.</param>
+    /// <param name="bulkSendRow">
+    /// The bulk-send job and row this request comes from, stored on the request so the
+    /// row is never dispatched twice. Null outside bulk send.
+    /// </param>
+    /// <param name="ct"></param>
     public async Task<SigningRequest> DispatchAsync(
         CreateSigningRequestBody body,
-        CancellationToken ct)
+        CancellationToken ct,
+        (Guid JobId, int RowIndex)? bulkSendRow = null)
     {
         var template = await _db.DocumentTemplates
             .Include(t => t.Roles)
@@ -92,6 +99,8 @@ public sealed class SigningWorkflowService
             SentAtUtc = now,
             CreatedBy = createdBy,
             NotifyEmail = string.IsNullOrEmpty(senderEmail) ? null : senderEmail,
+            BulkSendJobId = bulkSendRow?.JobId,
+            BulkSendRowIndex = bulkSendRow?.RowIndex,
         };
 
         foreach (var assignment in body.Recipients)
@@ -145,12 +154,18 @@ public sealed class SigningWorkflowService
         // Best-effort: send invitation emails to recipients we just promoted to Invited.
         // Failures are logged but do NOT roll back the dispatch — the API response still
         // carries access tokens so the caller has a fallback notification channel.
-        await TrySendInvitationEmailsAsync(request, ct).ConfigureAwait(false);
+        await TrySendInvitationEmailsAsync(
+            request,
+            request.Recipients.Where(r => r.Status == RecipientStatus.Invited).ToList(),
+            ct).ConfigureAwait(false);
 
         return request;
     }
 
-    private async Task TrySendInvitationEmailsAsync(SigningRequest request, CancellationToken ct)
+    private async Task TrySendInvitationEmailsAsync(
+        SigningRequest request,
+        IReadOnlyList<Recipient> recipients,
+        CancellationToken ct)
     {
         if (_emailSender is null || _emailOptions is null)
         {
@@ -165,7 +180,7 @@ public sealed class SigningWorkflowService
             return;
         }
 
-        foreach (var recipient in request.Recipients.Where(r => r.Status == RecipientStatus.Invited))
+        foreach (var recipient in recipients)
         {
             try
             {
@@ -507,6 +522,46 @@ public sealed class SigningWorkflowService
         return recipient is null ? null : (recipient.SigningRequest!, recipient);
     }
 
+    /// <summary>
+    /// Expires <paramref name="request"/> if its <see cref="SigningRequest.ExpiresAtUtc"/>
+    /// has passed and it is still open (Sent or InProgress). Recipients who have not
+    /// signed become Expired. Checked when a recipient link is used, so a request expires
+    /// on its first use after the deadline. Returns <c>true</c> when it expired now.
+    /// </summary>
+    public async Task<bool> ExpireIfDueAsync(SigningRequest request, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var now = DateTimeOffset.UtcNow;
+        if (request.ExpiresAtUtc is not { } expiresAt
+            || expiresAt > now
+            || request.Status is not (SigningRequestStatus.Sent or SigningRequestStatus.InProgress))
+        {
+            return false;
+        }
+
+        request.Status = SigningRequestStatus.Expired;
+        request.TerminationReason = "Expired";
+        AddAudit(request, AuditEventType.SigningRequestExpired, now);
+
+        foreach (var r in request.Recipients.Where(r => r.Status is not (RecipientStatus.Signed or RecipientStatus.Declined)))
+        {
+            r.Status = RecipientStatus.Expired;
+            AddAudit(request, AuditEventType.RecipientExpired, now, r);
+        }
+
+        if (_webhookDispatcher is not null)
+        {
+            await _webhookDispatcher.EnqueueAsync(
+                WebhookEventType.SigningRequestExpired,
+                new { SigningRequestId = request.Id, ExpiresAtUtc = expiresAt },
+                ct).ConfigureAwait(false);
+        }
+
+        await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+        return true;
+    }
+
     /// <summary>Records that the recipient viewed the signing page (idempotent).</summary>
     public async Task MarkViewedAsync(Recipient recipient, CancellationToken ct)
     {
@@ -582,7 +637,9 @@ public sealed class SigningWorkflowService
         recipient.SubmittedFieldValuesJson = System.Text.Json.JsonSerializer.Serialize(fieldValues);
         AddAudit(request, AuditEventType.RecipientSigned, now, recipient);
 
-        // Promote next-routing-order recipients from Pending → Invited.
+        // Promote next-routing-order recipients from Pending → Invited. They are emailed
+        // after the commit below, like the first slot is at dispatch.
+        var promoted = new List<Recipient>();
         var nextOrder = request.Recipients
             .Where(r => r.Status == RecipientStatus.Pending)
             .Select(r => (int?)r.RoutingOrder)
@@ -595,6 +652,7 @@ public sealed class SigningWorkflowService
                 r.Status = RecipientStatus.Invited;
                 r.InvitedAtUtc = now;
                 AddAudit(request, AuditEventType.RecipientInvited, now, r);
+                promoted.Add(r);
             }
         }
 
@@ -736,6 +794,11 @@ public sealed class SigningWorkflowService
         }
 
         await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+
+        if (promoted.Count > 0)
+        {
+            await TrySendInvitationEmailsAsync(request, promoted, ct).ConfigureAwait(false);
+        }
 
         // v1.3 #134 — sender completion notification. Fires only on the transition to
         // Completed and only AFTER commit, so a failed email can never leave the workflow

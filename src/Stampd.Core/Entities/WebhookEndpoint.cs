@@ -60,6 +60,7 @@ public enum WebhookEventType
     RecipientDeclined = 3,
     SigningRequestCompleted = 4,
     SigningRequestVoided = 5,
+    SigningRequestExpired = 6,
 }
 
 /// <summary>
