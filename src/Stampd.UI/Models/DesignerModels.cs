@@ -119,7 +119,8 @@ public sealed record SigningRequestSummary(
     [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("createdAtUtc")] DateTimeOffset CreatedAtUtc,
     [property: JsonPropertyName("completedAtUtc")] DateTimeOffset? CompletedAtUtc,
-    [property: JsonPropertyName("recipients")] IReadOnlyList<RecipientViewDto> Recipients);
+    [property: JsonPropertyName("recipients")] IReadOnlyList<RecipientViewDto> Recipients,
+    [property: JsonPropertyName("signedDocumentId")] Guid? SignedDocumentId = null);
 
 /// <summary>
 /// v2.0 Slice B — filter + sort knobs the SigningRequests page packs into the API
@@ -163,7 +164,8 @@ public sealed record SigningRequestDetail(
     [property: JsonPropertyName("createdAtUtc")] DateTimeOffset CreatedAtUtc,
     [property: JsonPropertyName("sentAtUtc")] DateTimeOffset? SentAtUtc,
     [property: JsonPropertyName("completedAtUtc")] DateTimeOffset? CompletedAtUtc,
-    [property: JsonPropertyName("recipients")] IReadOnlyList<RecipientViewDto> Recipients);
+    [property: JsonPropertyName("recipients")] IReadOnlyList<RecipientViewDto> Recipients,
+    [property: JsonPropertyName("signedDocumentId")] Guid? SignedDocumentId = null);
 
 /// <summary>
 /// Mirror of GET /api/signing-requests/{id}/audit (v1.3 #135). The shape comes back

@@ -45,7 +45,6 @@ internal static class WebhookEndpoints
         CancellationToken ct)
     {
         var endpoints = await db.WebhookEndpoints
-            .OrderBy(w => w.CreatedAtUtc)
             .Select(w => new WebhookEndpointView(
                 w.Id, w.Url, w.SubscribedEvents, w.IsActive,
                 Secret: "***",
@@ -53,7 +52,9 @@ internal static class WebhookEndpoints
             .ToListAsync(ct)
             .ConfigureAwait(false);
 
-        return Results.Ok(endpoints);
+        // Sorted in memory: SQLite cannot ORDER BY a DateTimeOffset column, and a
+        // tenant has only a handful of endpoints.
+        return Results.Ok(endpoints.OrderBy(w => w.CreatedAtUtc).ToList());
     }
 
     private static async Task<IResult> CreateAsync(

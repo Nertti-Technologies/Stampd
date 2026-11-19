@@ -86,6 +86,12 @@ public sealed class WebhookDelivery
     public DateTimeOffset CreatedAtUtc { get; set; }
 
     /// <summary>
+    /// Unix epoch milliseconds copy of <see cref="CreatedAtUtc"/>, stamped on insert, for
+    /// time-window queries that SQLite cannot run on DateTimeOffset.
+    /// </summary>
+    public long CreatedAtUtcEpochMs { get; set; }
+
+    /// <summary>
     /// Unix epoch milliseconds copy of <see cref="NextAttemptAtUtc"/>. The webhook
     /// delivery worker filters AND orders on this column so SQLite can translate the
     /// query to a real WHERE/ORDER BY (TEXT-stored DateTimeOffset comparisons aren't

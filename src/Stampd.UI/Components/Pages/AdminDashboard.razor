@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject DesignerApiClient Api
 @inject CurrentUserService CurrentUser
+@inject FileDownloader Downloader
 @inject IHostEnvironment HostEnv
 @* @inject NavigationManager Navigation *@
 
@@ -621,23 +622,26 @@
             <p class="stampd-page-subtitle" style="margin-top:0.25rem;">
                 Stream the tenant's audit trail as CSV for compliance teams. The default
                 export covers the same window as the analytics widgets (@_analyticsDays days).
-                Increase the window via the selector above or hand-edit the URL for more granular
-                filters (<code>?from=</code>, <code>?to=</code>, <code>?eventType=</code>, <code>?actorUserId=</code>).
+                Increase the window via the selector above. For finer filters, call
+                <code>GET /api/admin/audit/export</code> with <code>?from=</code>, <code>?to=</code>,
+                <code>?eventType=</code> or <code>?actorUserId=</code>.
             </p>
             <div style="display:flex; align-items:center; gap:0.75rem; margin-top:0.6rem; flex-wrap:wrap;">
-                <a class="stampd-btn stampd-btn--primary"
-                   href="@Api.BuildAuditExportUrl(_analyticsDays, eventType: null, actorUserId: null)"
-                   download
-                   style="text-decoration:none;">
+                <button type="button" class="stampd-btn stampd-btn--primary"
+                        disabled="@_exporting"
+                        @onclick="() => ExportAuditAsync(_analyticsDays)">
                     Download CSV (last @_analyticsDays days)
-                </a>
-                <a class="stampd-btn stampd-btn--ghost"
-                   href="@Api.BuildAuditExportUrl(days: null, eventType: null, actorUserId: null)"
-                   download
-                   style="text-decoration:none;">
+                </button>
+                <button type="button" class="stampd-btn stampd-btn--ghost"
+                        disabled="@_exporting"
+                        @onclick="() => ExportAuditAsync(null)">
                     Download all (capped at 250k rows)
-                </a>
+                </button>
             </div>
+            @if (_exportError is not null)
+            {
+                <div class="signer-error" role="alert" style="margin-top:0.75rem;">@_exportError</div>
+            }
         </section>
 
         <!-- v2.0 Slice D — danger zone: cleanup demo data. Renders in any env but the
@@ -710,6 +714,10 @@
     private bool _cleaning;
     private CleanupDemoResult? _cleanupResult;
     private string? _cleanupError;
+
+    // Audit export state.
+    private bool _exporting;
+    private string? _exportError;
 
     // v2.0 Slice C — analytics state. Single window selector drives all three
     // widgets so the dashboard reads as "the last N days" coherently.
@@ -855,6 +863,28 @@
         {
             _cleaning = false;
             _confirmingCleanup = false;
+        }
+    }
+
+    private async Task ExportAuditAsync(int? days)
+    {
+        _exporting = true;
+        _exportError = null;
+        try
+        {
+            var csv = await Api.DownloadAuditExportAsync(string.Empty, days, CancellationToken.None);
+            if (csv is null)
+            {
+                _exportError = "The audit export could not be downloaded. Check that you are signed in as an Admin.";
+                return;
+            }
+
+            var suffix = days is > 0 ? $"last-{days}-days" : "all";
+            await Downloader.SaveAsync($"stampd-audit-{suffix}.csv", "text/csv", csv, CancellationToken.None);
+        }
+        finally
+        {
+            _exporting = false;
         }
     }
 }

@@ -4,9 +4,9 @@
 @using Microsoft.AspNetCore.WebUtilities
 @using Microsoft.Extensions.Primitives
 @inject DesignerApiClient Api
-@inject IConfiguration Config
 @inject IHostEnvironment HostEnv
 @inject CurrentUserService CurrentUser
+@inject FileDownloader Downloader
 @inject NavigationManager Nav
 
 <PageTitle>Signing requests — Stampd</PageTitle>
@@ -137,6 +137,10 @@
     </section>
 
     <section class="stampd-card">
+        @if (_downloadError is not null)
+        {
+            <div class="signer-error" role="alert" style="margin-bottom:0.75rem;">@_downloadError</div>
+        }
         @if (_loading)
         {
             <p class="stampd-page-subtitle">Loading…</p>
@@ -249,18 +253,17 @@
                             </a>
                             @if (isCompleted)
                             {
-                                <a class="stampd-icon-btn stampd-icon-btn--primary"
-                                   href="@SignedDocumentUrl(r.Id)"
-                                   target="_blank"
-                                   rel="noopener"
-                                   aria-label="Open signed PDF"
-                                   title="Open the sealed PDF in a new tab">
+                                <button type="button" class="stampd-icon-btn stampd-icon-btn--primary"
+                                        disabled="@(r.SignedDocumentId is null)"
+                                        @onclick="() => DownloadSignedAsync(r)"
+                                        aria-label="Download signed PDF"
+                                        title="Download the sealed PDF">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                                         <polyline points="7 10 12 15 17 10"></polyline>
                                         <line x1="12" y1="15" x2="12" y2="3"></line>
                                     </svg>
-                                </a>
+                                </button>
                             }
                             else if (firstRecipient?.AccessUrl is { } url)
                             {
@@ -368,6 +371,7 @@
     private int _pageNumber = 1;
     private int _pageSize = 25;
     private bool _loading;
+    private string? _downloadError;
 
     // v2.0 Slice B — filter state. Each field corresponds to one UI control in the
     // collapsible filter panel. ApplyFilter() builds a SigningRequestListFilter from
@@ -706,28 +710,22 @@
         return $"Showing {first}–{last} of {_page.Total}";
     }
 
-    /// <summary>
-    /// Composes the URL for the management download endpoint. The DevAuthHttpHandler can't
-    /// inject the JWT on an <c>&lt;a href&gt;</c>-driven navigation (no DesignerApiClient
-    /// roundtrip), so for the sender path we use the <i>recipient</i> download URL — the
-    /// per-recipient access token in the URL is the auth — and grab the first recipient's
-    /// token. Single-signer workflows (the typical demo case) have exactly one anyway.
-    /// </summary>
-    private string SignedDocumentUrl(Guid requestId)
+    private async Task DownloadSignedAsync(SigningRequestSummary request)
     {
-        var apiBase = (Config["Stampd:Api:BaseUrl"] ?? "http://localhost:5070").TrimEnd('/');
-        var request = _page?.Items.FirstOrDefault(r => r.Id == requestId);
-        var recipient = request?.Recipients.FirstOrDefault();
-        if (recipient?.AccessUrl is null)
+        _downloadError = null;
+        if (request.SignedDocumentId is not { } documentId)
         {
-            return "#";
+            return;
         }
 
-        // recipient.AccessUrl is the UI signer page URL (per SigningUrlTemplate). The token
-        // is the last path segment. Reuse it to hit the recipient signed-document endpoint
-        // directly on the WebApi.
-        var token = recipient.AccessUrl.Split('/')[^1];
-        return $"{apiBase}/api/sign/{token}/signed-document";
+        var pdf = await Api.DownloadSignedDocumentAsync(_token, documentId, CancellationToken.None);
+        if (pdf is null)
+        {
+            _downloadError = "The signed PDF could not be downloaded.";
+            return;
+        }
+
+        await Downloader.SaveAsync($"signed-{request.Id:N}.pdf", "application/pdf", pdf, CancellationToken.None);
     }
 
     private static string StatusChipClass(string status) => status switch

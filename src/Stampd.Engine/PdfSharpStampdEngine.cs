@@ -31,10 +31,9 @@ namespace Stampd.Engine;
 /// 4. Re-open with <see cref="PdfDocumentOpenMode.Modify"/>, configure a digital signature,
 ///    and have PDFsharp's signing pipeline call back into <see cref="PadesCmsBuilder"/>
 ///    over the /ByteRange.
-/// 5. Compute SHA-256 over the final bytes, return.
-///
-/// Spike scope: PAdES B-B. Trusted-timestamp embedding (B-T) is a follow-up that lives
-/// inside <see cref="PadesCmsBuilder"/>.
+/// 5. For B-LT/B-LTA, append the DSS and, for B-LTA, a document timestamp as
+///    incremental updates.
+/// 6. Compute SHA-256 over the final bytes and report the level actually reached.
 /// </remarks>
 public sealed class PdfSharpStampdEngine : IStampdEngine
 {
@@ -174,9 +173,17 @@ public sealed class PdfSharpStampdEngine : IStampdEngine
         // appends a new PDF revision behind the existing %%EOF that adds /DSS to the
         // catalog without modifying any signed bytes — so the signature's /ByteRange
         // continues to validate against the original content.
+        var achieved = effectiveTsa is null ? PAdESLevel.BB : PAdESLevel.BT;
         if (revocationData is not null && !revocationData.IsEmpty)
         {
             signedPdf = PadesIncrementalUpdateWriter.AppendDss(signedPdf, revocationData);
+
+            // A DSS holding only certificates carries no revocation evidence, so it does
+            // not make the signature B-LT.
+            if (achieved == PAdESLevel.BT && revocationData.OcspResponses.Count + revocationData.Crls.Count > 0)
+            {
+                achieved = PAdESLevel.BLT;
+            }
         }
 
         // ---- Phase 4: append PAdES Document Timestamp for B-LTA (v1.3 #132) ----
@@ -191,10 +198,15 @@ public sealed class PdfSharpStampdEngine : IStampdEngine
             signedPdf = await PadesDocTimeStampWriter
                 .AppendAsync(signedPdf, effectiveTsa, hashAlgorithm, cancellationToken)
                 .ConfigureAwait(false);
+
+            if (achieved == PAdESLevel.BLT)
+            {
+                achieved = PAdESLevel.BLTA;
+            }
         }
 
         var hashHex = Convert.ToHexString(SHA256.HashData(signedPdf)).ToLowerInvariant();
-        return new SignedDocument(signedPdf, hashHex, DateTimeOffset.UtcNow);
+        return new SignedDocument(signedPdf, hashHex, DateTimeOffset.UtcNow) { AchievedLevel = achieved };
     }
 
     private static HashAlgorithmName ParseHashAlgorithm(string name) => name.ToUpperInvariant() switch

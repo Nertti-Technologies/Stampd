@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Stampd.Core;
 using Stampd.Core.Entities;
 using Stampd.Core.Notifications;
+using Stampd.Core.Sealing;
 using Stampd.Core.Storage;
 using Stampd.Infrastructure;
 using Stampd.WebApi.Models;
@@ -33,6 +34,8 @@ public sealed class SigningWorkflowService
     private readonly WebhookDispatcher? _webhookDispatcher;
     private readonly SenderCompletionNotifier? _senderCompletionNotifier;
     private readonly Core.Authorization.ICurrentActorContext? _actorContext;
+    private readonly ICryptographicSealingProvider? _sealingProvider;
+    private readonly ITimestampAuthorityProvider? _timestampAuthority;
     private readonly ILogger<SigningWorkflowService> _logger;
 
     public SigningWorkflowService(
@@ -45,7 +48,9 @@ public sealed class SigningWorkflowService
         WebhookDispatcher? webhookDispatcher = null,
         SenderCompletionNotifier? senderCompletionNotifier = null,
         Core.Authorization.ICurrentActorContext? actorContext = null,
-        ILogger<SigningWorkflowService>? logger = null)
+        ILogger<SigningWorkflowService>? logger = null,
+        ICryptographicSealingProvider? sealingProvider = null,
+        ITimestampAuthorityProvider? timestampAuthority = null)
     {
         _db = db;
         _storage = storage;
@@ -60,6 +65,10 @@ public sealed class SigningWorkflowService
         // get null ActorUserId/ActorRole, same as pre-v2.0 rows.
         _actorContext = actorContext;
         _logger = logger ?? NullLogger<SigningWorkflowService>.Instance;
+        // The same providers the engine is built from (Program.cs), read here only to
+        // record what sealed each document.
+        _sealingProvider = sealingProvider;
+        _timestampAuthority = timestampAuthority;
     }
 
     /// <summary>Creates a new SigningRequest from a template + recipient assignments, marks it Sent.</summary>
@@ -750,9 +759,10 @@ public sealed class SigningWorkflowService
                 StorageKey = storageKey,
                 ContentSha256 = documentSha,
                 SignedAtUtc = signed.SignedAtUtc,
-                SealingProviderName = "LocalCertificate", // v2: read from the provider via DI.
-                SealingKeyIdentifier = "spike-signer",
-                PAdESLevel = PAdESLevel.BT, // engine produces B-T when TSA is configured; we always claim B-T here.
+                SealingProviderName = _sealingProvider?.Name ?? "Unknown",
+                SealingKeyIdentifier = await SigningKeyIdentifierAsync(ct).ConfigureAwait(false),
+                TimestampAuthorityUrl = signed.AchievedLevel >= PAdESLevel.BT ? _timestampAuthority?.Name : null,
+                PAdESLevel = signed.AchievedLevel,
             };
             _db.SignedDocumentRecords.Add(signedDocument);
 
@@ -823,6 +833,18 @@ public sealed class SigningWorkflowService
     /// </list>
     /// Returns null when nobody has submitted anything for this field.
     /// </summary>
+    /// <summary>SHA-256 thumbprint of the signing certificate, or "Unknown" without a provider.</summary>
+    private async Task<string> SigningKeyIdentifierAsync(CancellationToken ct)
+    {
+        if (_sealingProvider is null)
+        {
+            return "Unknown";
+        }
+
+        var certificate = await _sealingProvider.GetSigningCertificateAsync(ct).ConfigureAwait(false);
+        return certificate.GetCertHashString(HashAlgorithmName.SHA256);
+    }
+
     private static IReadOnlyDictionary<int, ApiFieldValue>? ResolveFieldOwner(
         SigningRequest request,
         Recipient currentSubmitter,

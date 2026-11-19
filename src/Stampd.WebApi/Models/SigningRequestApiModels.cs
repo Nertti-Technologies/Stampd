@@ -26,7 +26,10 @@ public sealed record CreateSigningRequestBody(
 /// <summary>Assigns a real person to a template role.</summary>
 public sealed record RecipientAssignment(string RoleName, string Email, string Name);
 
-/// <summary>Response after a signing request is created.</summary>
+/// <summary>
+/// A signing request as returned by the management API. <c>SignedDocumentId</c> is set
+/// once the request completes; download it from <c>/api/signed-documents/{id}/download</c>.
+/// </summary>
 public sealed record SigningRequestResponse(
     Guid Id,
     Guid DocumentTemplateId,
@@ -35,7 +38,8 @@ public sealed record SigningRequestResponse(
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset? SentAtUtc,
     DateTimeOffset? CompletedAtUtc,
-    IReadOnlyList<RecipientView> Recipients);
+    IReadOnlyList<RecipientView> Recipients,
+    Guid? SignedDocumentId = null);
 
 /// <summary>What a recipient looks like in API responses (incl. their access link).</summary>
 public sealed record RecipientView(

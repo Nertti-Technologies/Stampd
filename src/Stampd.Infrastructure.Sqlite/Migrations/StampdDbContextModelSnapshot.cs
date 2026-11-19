@@ -102,6 +102,9 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
                     b.Property<DateTimeOffset>("OccurredAtUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<long>("OccurredAtUtcEpochMs")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("PayloadJson")
                         .HasColumnType("TEXT");
 
@@ -124,9 +127,13 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
 
                     b.HasIndex("SigningRequestId", "OccurredAtUtc");
 
+                    b.HasIndex("SigningRequestId", "OccurredAtUtcEpochMs");
+
                     b.HasIndex("TenantId", "EventType");
 
                     b.HasIndex("TenantId", "OccurredAtUtc");
+
+                    b.HasIndex("TenantId", "OccurredAtUtcEpochMs");
 
                     b.HasIndex("TenantId", "ActorUserId", "OccurredAtUtc");
 
@@ -563,6 +570,9 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<long>("CreatedAtUtcEpochMs")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("EventType")
                         .HasColumnType("INTEGER");
 
@@ -590,6 +600,8 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CreatedAtUtcEpochMs");
 
                     b.HasIndex("NextAttemptAtUtc");
 
@@ -660,6 +672,9 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<long>("CreatedAtUtcEpochMs")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTimeOffset>("ExpiresAtUtc")
                         .HasColumnType("TEXT");
 
@@ -677,6 +692,8 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("VerificationId");
+
+                    b.HasIndex("CreatedAtUtcEpochMs");
 
                     b.HasIndex("ExpiresAtUtc");
 

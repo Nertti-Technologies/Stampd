@@ -25,6 +25,12 @@ public sealed class OtpChallengeEntity
     public DateTimeOffset CreatedAtUtc { get; set; }
 
     /// <summary>
+    /// Unix epoch milliseconds copy of <see cref="CreatedAtUtc"/>, stamped on insert, for
+    /// time-window queries that SQLite cannot run on DateTimeOffset.
+    /// </summary>
+    public long CreatedAtUtcEpochMs { get; set; }
+
+    /// <summary>
     /// Count of failed verify attempts. Reserved for v1.2 throttling — not enforced here
     /// to keep the store interface minimal.
     /// </summary>

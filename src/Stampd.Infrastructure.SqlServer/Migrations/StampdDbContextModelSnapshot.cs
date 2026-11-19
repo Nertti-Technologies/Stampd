@@ -107,6 +107,9 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
                     b.Property<DateTimeOffset>("OccurredAtUtc")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<long>("OccurredAtUtcEpochMs")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("PayloadJson")
                         .HasColumnType("nvarchar(max)");
 
@@ -129,9 +132,13 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
 
                     b.HasIndex("SigningRequestId", "OccurredAtUtc");
 
+                    b.HasIndex("SigningRequestId", "OccurredAtUtcEpochMs");
+
                     b.HasIndex("TenantId", "EventType");
 
                     b.HasIndex("TenantId", "OccurredAtUtc");
+
+                    b.HasIndex("TenantId", "OccurredAtUtcEpochMs");
 
                     b.HasIndex("TenantId", "ActorUserId", "OccurredAtUtc");
 
@@ -569,6 +576,9 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<long>("CreatedAtUtcEpochMs")
+                        .HasColumnType("bigint");
+
                     b.Property<int>("EventType")
                         .HasColumnType("int");
 
@@ -596,6 +606,8 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CreatedAtUtcEpochMs");
 
                     b.HasIndex("NextAttemptAtUtc");
 
@@ -666,6 +678,9 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<long>("CreatedAtUtcEpochMs")
+                        .HasColumnType("bigint");
+
                     b.Property<DateTimeOffset>("ExpiresAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -683,6 +698,8 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
                         .HasColumnType("nvarchar(64)");
 
                     b.HasKey("VerificationId");
+
+                    b.HasIndex("CreatedAtUtcEpochMs");
 
                     b.HasIndex("ExpiresAtUtc");
 

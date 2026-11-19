@@ -19,8 +19,12 @@ internal sealed class OtpChallengeEntityConfiguration : IEntityTypeConfiguration
         builder.Property(c => c.Salt).HasMaxLength(64).IsRequired();
         builder.Property(c => c.ExpiresAtUtc).IsRequired();
         builder.Property(c => c.CreatedAtUtc).IsRequired();
+        builder.Property(c => c.CreatedAtUtcEpochMs).IsRequired();
 
         // Lookup by expiry for the cleanup background sweep.
         builder.HasIndex(c => c.ExpiresAtUtc);
+
+        // Identity-verification analytics filter challenges by creation time.
+        builder.HasIndex(c => c.CreatedAtUtcEpochMs);
     }
 }
