@@ -1,4 +1,4 @@
-# Migrating Stampd v3.2.x → v3.3.0 (unreleased)
+# Migrating Stampd v3.2.x → v3.3.0
 
 v3.3.0 makes the signed-document record accurate, fixes the admin downloads and makes the admin exports and analytics work on SQLite. Apply the V19 migration. No public package API is removed.
 
