@@ -248,6 +248,19 @@ public sealed partial class SigningWorkflowService
     }
 
     /// <summary>
+    /// Records the identity challenge just issued to the recipient. Only this challenge
+    /// can verify them; an earlier one stops working.
+    /// </summary>
+    public async Task RecordIdentityChallengeAsync(
+        Recipient recipient,
+        string verificationId,
+        CancellationToken ct)
+    {
+        recipient.PendingVerificationId = verificationId;
+        await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Records a successful identity-verification challenge for the recipient. Stamps
     /// IdentityVerifiedAtUtc + IdentityVerificationMethod, writes a RecipientIdentityVerified
     /// audit event, and persists. Idempotent — re-marks return the existing timestamp.
@@ -265,6 +278,7 @@ public sealed partial class SigningWorkflowService
         var now = DateTimeOffset.UtcNow;
         recipient.IdentityVerifiedAtUtc = now;
         recipient.IdentityVerificationMethod = verificationMethod;
+        recipient.PendingVerificationId = null;
 
         AddAudit(recipient.SigningRequest!, AuditEventType.RecipientIdentityVerified, now, recipient);
 

@@ -303,6 +303,10 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("PendingVerificationId")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid?>("RoleId")
                         .HasColumnType("TEXT");
 

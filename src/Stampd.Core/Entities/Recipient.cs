@@ -31,6 +31,13 @@ public sealed class Recipient
     /// <summary>Method used to verify identity (e.g. "EmailOtp", "Sms", "Kba", "IdDocument"). Set by the <c>IIdentityVerificationProvider</c>.</summary>
     public string? IdentityVerificationMethod { get; set; }
 
+    /// <summary>
+    /// Verification ID of the latest identity challenge issued to this recipient. Verify
+    /// accepts only this ID, so a code sent to someone else cannot verify this recipient.
+    /// Replaced by each new challenge and cleared on success.
+    /// </summary>
+    public string? PendingVerificationId { get; set; }
+
     public string? DeclineReason { get; set; }
 
     /// <summary>Opaque per-recipient signing link token. Single-use; rotated on each invite resend.</summary>
