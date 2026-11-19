@@ -67,3 +67,6 @@ jobs:
 
       - name: Test (Stampd.Engine.Tests)
         run: dotnet test tests/Stampd.Engine.Tests/Stampd.Engine.Tests.csproj --configuration Release --no-build --verbosity normal
+
+      - name: Test (Stampd.WebApi.Tests)
+        run: dotnet test tests/Stampd.WebApi.Tests/Stampd.WebApi.Tests.csproj --configuration Release --no-build --verbosity normal

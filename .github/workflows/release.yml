@@ -86,6 +86,9 @@ jobs:
       - name: Test (Stampd.Engine.Tests)
         run: dotnet test tests/Stampd.Engine.Tests/Stampd.Engine.Tests.csproj --configuration Release --no-build --verbosity normal
 
+      - name: Test (Stampd.WebApi.Tests)
+        run: dotnet test tests/Stampd.WebApi.Tests/Stampd.WebApi.Tests.csproj --configuration Release --no-build --verbosity normal
+
       # Verify the tag matches Directory.Build.props's <Version>. On a dispatch run
       # without a tag, skip the check.
       - name: Verify tag matches pinned version
