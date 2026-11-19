@@ -39,6 +39,10 @@
       effective package version becomes 1.3.0-preview.1.
     -->
     <!--
+      v3.3.0: the signed-document record names the sealing provider, the signing key's
+      thumbprint, the timestamp authority and the PAdES level actually reached
+      (SignedDocument.AchievedLevel); signing-request responses carry signedDocumentId;
+      admin exports and analytics run on SQLite (V19 migration). See MIGRATION.md.
       v3.2.0: enforces signing-request expiry and closes voided, expired and declined
       requests to recipients (410), refuses webhook URLs on internal addresses unless
       allowlisted, makes bulk-send rows idempotent (V18 migration), validates signature
@@ -54,7 +58,7 @@
       v3.0.0 shipped tenant-isolated admin scopes, OIDC relay for external IdPs, SAML2 SP
       scaffolding and industry compliance bundles. Rules engine moved to v3.1 candidates.
     -->
-    <Version>3.2.0</Version>
+    <Version>3.3.0</Version>
 
     <Product>Stampd</Product>
     <Authors>Suresh Subramanian and Stampd contributors</Authors>
