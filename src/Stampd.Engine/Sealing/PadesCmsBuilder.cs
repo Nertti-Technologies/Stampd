@@ -132,14 +132,14 @@ internal sealed class PadesCmsBuilder
         if (!certificate.HasPrivateKey)
         {
             // Cert is public-only — must route signing through the provider's SignAsync.
-            return new ProviderSignatureFactory(_provider, _hashAlgorithm);
+            return new ProviderSignatureFactory(_provider, _hashAlgorithm, certificate);
         }
 
         using var rsa = certificate.GetRSAPrivateKey();
         if (rsa is null)
         {
             // HasPrivateKey lied (e.g. ECDSA cert) — fall back to HSM path.
-            return new ProviderSignatureFactory(_provider, _hashAlgorithm);
+            return new ProviderSignatureFactory(_provider, _hashAlgorithm, certificate);
         }
 
         var bcPrivateKey = DotNetUtilities.GetRsaKeyPair(rsa).Private;
@@ -239,16 +239,15 @@ internal sealed class PadesCmsBuilder
             //    so byte equality holds across re-parses.
             var signerBundle = BuildSignerFieldBundle(signer);
 
-            // 4) Compute the imprint and ask the TSA to sign it. The TSA returns an
-            //    RFC 3161 TimeStampToken whose messageImprint hash equals SHA-?(imprint).
-            //    We pass the raw imprint bytes; the TSA provider hashes them internally
-            //    using _hashAlgorithm (same convention as the signature TST path).
-            var imprintBytes = AtsHashIndexV3Builder.ComputeImprint(
+            // 4) Build the imprint input and ask the TSA to sign it. The TSA provider
+            //    hashes its input with _hashAlgorithm (same convention as the signature
+            //    TST path), so the input must be the unhashed concatenation: the TST's
+            //    messageImprint is then H(concatenation), which is what verifiers recompute.
+            var imprintBytes = AtsHashIndexV3Builder.BuildImprintInput(
                 eContentTypeDer,
                 toBeSigned,
                 [signerBundle],
-                atsHashIndexAttributeDer,
-                _hashAlgorithm);
+                atsHashIndexAttributeDer);
 
             var tstBytes = await _timestampAuthority!
                 .RequestTimestampAsync(imprintBytes, _hashAlgorithm, cancellationToken)

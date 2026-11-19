@@ -127,10 +127,11 @@ internal static class AtsHashIndexV3Builder
     }
 
     /// <summary>
-    /// Computes the archive-time-stamp-v3 imprint per ETSI TS 101 733 §6.4.3. The
-    /// returned bytes are what gets handed to the TSA — the TSA will sign a hash
-    /// of these bytes (via its TimeStampReq's messageImprint field), producing a
-    /// TST that uniquely commits to (eContent || all signer fields || ats-hash-index).
+    /// Builds the archive-time-stamp-v3 imprint input per ETSI TS 101 733 §6.4.3: the
+    /// concatenation (eContentType || eContent || signer fields || ats-hash-index). The
+    /// result is NOT hashed here. It is handed to the TSA provider, which hashes it once
+    /// into the TimeStampReq's messageImprint, so the TST commits to H(concatenation),
+    /// the value verifiers recompute.
     /// </summary>
     /// <param name="eContentType">DER of <c>signedData.encapContentInfo.eContentType</c>.</param>
     /// <param name="eContent">
@@ -142,13 +143,11 @@ internal static class AtsHashIndexV3Builder
     /// DER of the entire ats-hash-index-v3 Attribute (oid + values) that's being
     /// added to the signer's unsigned attributes alongside the archive TST.
     /// </param>
-    /// <param name="hashAlgorithm">Hash to apply over the concatenation.</param>
-    public static byte[] ComputeImprint(
+    public static byte[] BuildImprintInput(
         byte[] eContentType,
         byte[]? eContent,
         IReadOnlyList<SignerFieldBundle> signers,
-        byte[] atsHashIndexAttributeDer,
-        HashAlgorithmName hashAlgorithm)
+        byte[] atsHashIndexAttributeDer)
     {
         ArgumentNullException.ThrowIfNull(eContentType);
         ArgumentNullException.ThrowIfNull(signers);
@@ -177,8 +176,7 @@ internal static class AtsHashIndexV3Builder
 
         ms.Write(atsHashIndexAttributeDer);
 
-        using var hasher = CreateHasher(hashAlgorithm);
-        return hasher.ComputeHash(ms.ToArray());
+        return ms.ToArray();
     }
 
     /// <summary>

@@ -1,8 +1,10 @@
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Pkcs;
 using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Asn1.X9;
 using Org.BouncyCastle.Crypto;
 
 using Stampd.Core.Sealing;
@@ -24,19 +26,46 @@ namespace Stampd.Engine.Sealing;
 /// </remarks>
 internal sealed class ProviderSignatureFactory : ISignatureFactory
 {
-    private static readonly AlgorithmIdentifier Sha256WithRsa =
-        new(PkcsObjectIdentifiers.Sha256WithRsaEncryption, DerNull.Instance);
+    private const string RsaKeyOid = "1.2.840.113549.1.1.1";
+    private const string EcKeyOid = "1.2.840.10045.2.1";
 
     private readonly ICryptographicSealingProvider _provider;
     private readonly HashAlgorithmName _hashAlgorithm;
+    private readonly AlgorithmIdentifier _signatureAlgorithm;
 
-    public ProviderSignatureFactory(ICryptographicSealingProvider provider, HashAlgorithmName hashAlgorithm)
+    public ProviderSignatureFactory(
+        ICryptographicSealingProvider provider,
+        HashAlgorithmName hashAlgorithm,
+        X509Certificate2 certificate)
     {
+        ArgumentNullException.ThrowIfNull(certificate);
         _provider = provider;
         _hashAlgorithm = hashAlgorithm;
+        _signatureAlgorithm = SignatureAlgorithmFor(certificate.GetKeyAlgorithm(), hashAlgorithm);
     }
 
-    public object AlgorithmDetails => Sha256WithRsa;
+    public object AlgorithmDetails => _signatureAlgorithm;
+
+    /// <summary>
+    /// Builds the CMS signatureAlgorithm from the requested hash and the certificate's
+    /// key type. BouncyCastle derives the messageDigest attribute's hash from this value,
+    /// so it must name the same hash the provider signs with, or the signature will not
+    /// verify.
+    /// </summary>
+    internal static AlgorithmIdentifier SignatureAlgorithmFor(string keyAlgorithmOid, HashAlgorithmName hashAlgorithm)
+        => (keyAlgorithmOid, hashAlgorithm.Name) switch
+        {
+            // RFC 4055 §5: RSA PKCS#1 v1.5 identifiers carry an explicit NULL parameter.
+            (RsaKeyOid, "SHA256") => new AlgorithmIdentifier(PkcsObjectIdentifiers.Sha256WithRsaEncryption, DerNull.Instance),
+            (RsaKeyOid, "SHA384") => new AlgorithmIdentifier(PkcsObjectIdentifiers.Sha384WithRsaEncryption, DerNull.Instance),
+            (RsaKeyOid, "SHA512") => new AlgorithmIdentifier(PkcsObjectIdentifiers.Sha512WithRsaEncryption, DerNull.Instance),
+            // RFC 5758 §3.2: ECDSA identifiers omit the parameters field.
+            (EcKeyOid, "SHA256") => new AlgorithmIdentifier(X9ObjectIdentifiers.ECDsaWithSha256),
+            (EcKeyOid, "SHA384") => new AlgorithmIdentifier(X9ObjectIdentifiers.ECDsaWithSha384),
+            (EcKeyOid, "SHA512") => new AlgorithmIdentifier(X9ObjectIdentifiers.ECDsaWithSha512),
+            _ => throw new NotSupportedException(
+                $"Sealing does not support key algorithm '{keyAlgorithmOid}' with hash '{hashAlgorithm.Name}'."),
+        };
 
     public IStreamCalculator<IBlockResult> CreateCalculator()
         => new ProviderStreamCalculator(_provider, _hashAlgorithm);
