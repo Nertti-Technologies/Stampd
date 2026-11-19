@@ -19,8 +19,18 @@ public sealed class SigningRequest
     /// <summary>Optional message body included in invitation emails.</summary>
     public string? Message { get; set; }
 
-    /// <summary>Identifier of the user who dispatched the request.</summary>
+    /// <summary>
+    /// Identifier of the user who dispatched the request: the access token's subject, or
+    /// <c>"api"</c> for work without a signed-in user (bulk send). Rows created before 3.1
+    /// may hold the sender's email address instead.
+    /// </summary>
     public string CreatedBy { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Mailbox that receives the completion notification, if any. Taken from the request's
+    /// <c>SenderEmail</c>; null means no notification.
+    /// </summary>
+    public string? NotifyEmail { get; set; }
 
     public SigningRequestStatus Status { get; set; }
 

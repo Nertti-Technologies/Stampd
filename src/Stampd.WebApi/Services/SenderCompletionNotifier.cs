@@ -63,7 +63,8 @@ public sealed class SenderCompletionNotifier
         // CreatedBy may be the legacy "api" sentinel for pre-1.3 callers, or any string a
         // future auth layer chooses to stamp. Only proceed when it round-trips as a
         // mailbox address — defensive against principal names like "designer-user".
-        if (!TryParseMailbox(request.CreatedBy, out var senderAddress))
+        // Rows created before 3.1 kept the sender's address in CreatedBy.
+        if (!TryParseMailbox(request.NotifyEmail ?? request.CreatedBy, out var senderAddress))
         {
             _logger.LogDebug(
                 "Sender completion email skipped for request {RequestId}: CreatedBy is not a routable mailbox.",
@@ -82,7 +83,7 @@ public sealed class SenderCompletionNotifier
             await _emailSender.SendAsync(new EmailMessage(
                 FromAddress: _options.FromAddress,
                 FromDisplayName: _options.FromDisplayName,
-                To: [new EmailAddress(senderAddress, request.CreatedBy)],
+                To: [new EmailAddress(senderAddress, senderAddress)],
                 Subject: subject,
                 PlainTextBody: plain,
                 HtmlBody: html),

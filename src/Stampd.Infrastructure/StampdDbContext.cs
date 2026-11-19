@@ -60,7 +60,10 @@ public class StampdDbContext : DbContext
         // query, parameterising the resulting SQL.
         //
         // A current tenant of Guid.Empty (e.g. from a cross-tenant maintenance job)
-        // disables the filter for that query path.
+        // disables the filter for that query path. Invariant shared with the host's
+        // ITenantContext: Guid.Empty must only come from TenantScope.Enter in trusted
+        // background code, never from request input. In Stampd.WebApi,
+        // TenantResolutionMiddleware rejects it at the HTTP boundary.
         modelBuilder.Entity<DocumentTemplate>()
             .HasQueryFilter(t => CurrentTenantId() == Guid.Empty || t.TenantId == CurrentTenantId());
 

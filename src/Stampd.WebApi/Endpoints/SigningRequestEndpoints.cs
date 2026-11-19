@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
+using Stampd.Core.Authorization;
 using Stampd.Core.Entities;
 using Stampd.Infrastructure;
 using Stampd.WebApi.Models;
 using Stampd.WebApi.Services;
+using Stampd.WebApi.Auth;
 
 namespace Stampd.WebApi.Endpoints;
 
@@ -16,6 +18,7 @@ internal static class SigningRequestEndpoints
 
         group.MapPost("/", CreateAsync)
             .WithName("CreateSigningRequest")
+            .RequireAuthorization(StampdPolicies.SenderOrAdmin)
             .WithSummary("Dispatches a new signing request from a template. Returns access URLs for each recipient.");
 
         group.MapGet("/", ListAsync)
@@ -97,15 +100,17 @@ internal static class SigningRequestEndpoints
             return Results.Problem(ex.Message, statusCode: 400);
         }
 
+        // The caller just created the request, so they are its owner.
         return Results.Created(
             $"/api/signing-requests/{created.Id}",
-            ToResponse(created, http, emailOptions));
+            ToResponse(created, http, emailOptions, includeAccessUrls: true));
     }
 
     private static async Task<IResult> GetAsync(
         Guid id,
         [FromServices] StampdDbContext db,
         [FromServices] WorkflowEmailOptions emailOptions,
+        [FromServices] ICurrentActorContext actor,
         HttpContext http,
         CancellationToken ct)
     {
@@ -116,7 +121,7 @@ internal static class SigningRequestEndpoints
 
         return request is null
             ? Results.NotFound()
-            : Results.Ok(ToResponse(request, http, emailOptions));
+            : Results.Ok(ToResponse(request, http, emailOptions, CanSeeAccessUrls(request, actor)));
     }
 
     /// <summary>
@@ -142,6 +147,7 @@ internal static class SigningRequestEndpoints
         [FromQuery] string? direction,
         [FromServices] StampdDbContext db,
         [FromServices] WorkflowEmailOptions emailOptions,
+        [FromServices] ICurrentActorContext actor,
         HttpContext http,
         CancellationToken ct)
     {
@@ -200,7 +206,7 @@ internal static class SigningRequestEndpoints
         if (!string.IsNullOrWhiteSpace(senderEmail))
         {
             var sender = senderEmail.Trim();
-            query = query.Where(r => r.CreatedBy == sender);
+            query = query.Where(r => r.CreatedBy == sender || r.NotifyEmail == sender);
         }
 
         if (!string.IsNullOrWhiteSpace(recipientEmail))
@@ -290,7 +296,7 @@ internal static class SigningRequestEndpoints
             status = r.Status,
             createdAtUtc = r.CreatedAtUtc,
             completedAtUtc = r.CompletedAtUtc,
-            recipients = ToResponse(r, http, emailOptions).Recipients,
+            recipients = ToResponse(r, http, emailOptions, CanSeeAccessUrls(r, actor)).Recipients,
         }).ToList();
 
         // totalPages is at least 1 even for empty result sets, so UI math like
@@ -307,10 +313,19 @@ internal static class SigningRequestEndpoints
         });
     }
 
+    /// <summary>
+    /// Recipient access URLs are bearer credentials (whoever holds one can sign as that
+    /// recipient), so only the request's owner and Admins receive them.
+    /// </summary>
+    private static bool CanSeeAccessUrls(SigningRequest request, ICurrentActorContext actor)
+        => actor.IsAdmin
+            || (actor.UserId is { Length: > 0 } userId && string.Equals(request.CreatedBy, userId, StringComparison.Ordinal));
+
     private static SigningRequestResponse ToResponse(
         SigningRequest request,
         HttpContext http,
-        WorkflowEmailOptions emailOptions)
+        WorkflowEmailOptions emailOptions,
+        bool includeAccessUrls)
     {
         // When SigningUrlTemplate is configured (typical when a Blazor UI hosts the
         // recipient page on a different origin than the WebApi), use it. Otherwise fall
@@ -333,7 +348,7 @@ internal static class SigningRequestEndpoints
                 r.Status,
                 r.InvitedAtUtc,
                 r.SignedAtUtc,
-                AccessUrl: r.Status == RecipientStatus.Signed
+                AccessUrl: !includeAccessUrls || r.Status == RecipientStatus.Signed
                     ? null
                     : BuildAccessUrl(r.AccessToken)))
             .ToList();

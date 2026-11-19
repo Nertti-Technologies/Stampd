@@ -1,5 +1,10 @@
+using System.Net;
+using System.Net.Http.Json;
+
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 
 using Xunit;
 
@@ -51,6 +56,55 @@ public sealed class AuthModeStartupTests
         // No throw, healthy host.
         using var client = factory.CreateClient();
         Assert.NotNull(client);
+    }
+
+    /// <summary>
+    /// The SAML2 SP validates no assertions yet, so Saml2 mode can't authenticate anyone
+    /// outside Development and must not fall back to the development bearer key.
+    /// </summary>
+    [Fact]
+    public void Saml2_InProduction_ThrowsAtStartup()
+    {
+        var factory = new ScopedStampdWebApplicationFactory(new Dictionary<string, string?>
+        {
+            ["Stampd:Auth:Mode"] = "Saml2",
+            // A complete SP configuration, so the SAML options validation passes and only
+            // the development-auth guard can stop startup.
+            ["Stampd:Auth:Saml2:SpEntityId"] = "https://stampd.example.test/saml",
+            ["Stampd:Auth:Saml2:IdpEntityId"] = "https://idp.example.test",
+            ["Stampd:Auth:Saml2:IdpMetadataUrl"] = "https://idp.example.test/metadata",
+        }, environment: "Production");
+
+        var ex = Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
+        Assert.Contains("Mode=Saml2 is only allowed in Development", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The anonymous dev-token endpoint exists only where development auth is allowed. An
+    /// unmapped route answers 401 here, because the fallback policy also covers requests
+    /// that match no endpoint, so the test checks the endpoint table as well.
+    /// </summary>
+    [Fact]
+    public async Task Oidc_InProduction_DoesNotMapTheDevTokenEndpoint()
+    {
+        using var factory = new ScopedStampdWebApplicationFactory(new Dictionary<string, string?>
+        {
+            ["Stampd:Auth:Mode"] = "Oidc",
+            ["Stampd:Auth:Oidc:Authority"] = "https://idp.example.test",
+            ["Stampd:Auth:Oidc:Audience"] = "stampd-api",
+        }, environment: "Production");
+
+        // HTTPS so the production pipeline's HTTPS redirection doesn't answer first.
+        using var client = factory.CreateClient(new() { BaseAddress = new Uri("https://localhost") });
+        using var response = await client.PostAsJsonAsync(
+            "/api/auth/dev-token",
+            new { subject = "anyone", roles = new[] { "Admin" } },
+            TestContext.Current.CancellationToken);
+
+        Assert.NotEqual(HttpStatusCode.OK, response.StatusCode);
+        Assert.DoesNotContain(
+            factory.Services.GetRequiredService<EndpointDataSource>().Endpoints.OfType<RouteEndpoint>(),
+            e => e.RoutePattern.RawText?.TrimStart('/') == "api/auth/dev-token");
     }
 
     // Note: the Oidc-without-Authority guard is exercised as a focused unit test

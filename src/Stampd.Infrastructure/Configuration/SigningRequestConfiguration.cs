@@ -17,6 +17,7 @@ internal sealed class SigningRequestConfiguration : IEntityTypeConfiguration<Sig
         builder.Property(r => r.Subject).IsRequired().HasMaxLength(256);
         builder.Property(r => r.Message).HasMaxLength(4096);
         builder.Property(r => r.CreatedBy).IsRequired().HasMaxLength(256);
+        builder.Property(r => r.NotifyEmail).HasMaxLength(320);
         builder.Property(r => r.Status).IsRequired().HasConversion<int>();
         builder.Property(r => r.CreatedAtUtc).IsRequired();
         builder.Property(r => r.TerminationReason).HasMaxLength(2048);

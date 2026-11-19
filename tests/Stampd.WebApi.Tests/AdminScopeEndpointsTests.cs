@@ -341,11 +341,9 @@ public sealed class AdminScopeEndpointsTests
         return doc.RootElement.GetProperty("accessToken").GetString()!;
     }
 
-    // Stampd's HttpTenantContext reads the active tenant from the X-Stampd-Tenant
-    // header, NOT from the JWT's tenantId claim. Tests must send both — token for
-    // auth, header for the per-request tenant scope. Skipping the header silently
-    // falls back to the configured default tenant, which makes cross-tenant tests
-    // look like every grant landed in the same bucket.
+    // The token's tenant_id claim decides the request's tenant. The X-Stampd-Tenant
+    // header may switch to another tenant only for an Admin scoped to it (or a
+    // super-admin), which is how these tests act on TenantA and TenantB with one token.
     private static async Task<HttpResponseMessage> PostScopeAsync(HttpClient client, string token, string tenantId, object body)
     {
         var req = new HttpRequestMessage(HttpMethod.Post, "/api/admin/scopes")

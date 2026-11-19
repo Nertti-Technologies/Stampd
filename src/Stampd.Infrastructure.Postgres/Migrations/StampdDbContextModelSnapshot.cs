@@ -17,7 +17,7 @@ namespace Stampd.Infrastructure.Postgres.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.8")
+                .HasAnnotation("ProductVersion", "10.0.15")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -40,16 +40,16 @@ namespace Stampd.Infrastructure.Postgres.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
+                    b.Property<string>("RevocationReason")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
                     b.Property<DateTimeOffset?>("RevokedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("RevokedByUserId")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
-
-                    b.Property<string>("RevocationReason")
-                        .HasMaxLength(1024)
-                        .HasColumnType("character varying(1024)");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
@@ -73,6 +73,14 @@ namespace Stampd.Infrastructure.Postgres.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<string>("ActorRole")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ActorUserId")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
 
                     b.Property<string>("DocumentHashAtEvent")
                         .HasMaxLength(64)
@@ -114,15 +122,6 @@ namespace Stampd.Infrastructure.Postgres.Migrations
                     b.Property<string>("UserAgent")
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)");
-                    b.Property<string>("ActorRole")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("ActorUserId")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-
 
                     b.HasKey("Id");
 
@@ -133,8 +132,8 @@ namespace Stampd.Infrastructure.Postgres.Migrations
                     b.HasIndex("TenantId", "EventType");
 
                     b.HasIndex("TenantId", "OccurredAtUtc");
-                    b.HasIndex("TenantId", "ActorUserId", "OccurredAtUtc");
 
+                    b.HasIndex("TenantId", "ActorUserId", "OccurredAtUtc");
 
                     b.ToTable("AuditEvents", (string)null);
                 });
@@ -430,6 +429,10 @@ namespace Stampd.Infrastructure.Postgres.Migrations
                     b.Property<string>("Message")
                         .HasMaxLength(4096)
                         .HasColumnType("character varying(4096)");
+
+                    b.Property<string>("NotifyEmail")
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
 
                     b.Property<DateTimeOffset?>("SentAtUtc")
                         .HasColumnType("timestamp with time zone");

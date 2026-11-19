@@ -103,7 +103,7 @@ public sealed class WorkflowHappyPathTests : IClassFixture<StampdWebApplicationF
         Assert.True(signedPdf.Length > pdfBytes.Length); // grew due to signature dict
     }
 
-    private static byte[] BuildSyntheticPdf()
+    internal static byte[] BuildSyntheticPdf()
     {
         using var document = new PdfDocument();
         document.Info.Title = "Workflow Test";

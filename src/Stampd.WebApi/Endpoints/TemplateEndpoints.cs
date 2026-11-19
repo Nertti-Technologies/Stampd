@@ -3,11 +3,13 @@ using System.Security.Cryptography;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
+using Stampd.Core.Authorization;
 using Stampd.Core;
 using Stampd.Core.Entities;
 using Stampd.Core.Storage;
 using Stampd.Infrastructure;
 using Stampd.WebApi.Models;
+using Stampd.WebApi.Auth;
 
 namespace Stampd.WebApi.Endpoints;
 
@@ -19,6 +21,7 @@ internal static class TemplateEndpoints
 
         group.MapPost("/", CreateAsync)
             .WithName("CreateTemplate")
+            .RequireAuthorization(StampdPolicies.SenderOrAdmin)
             .WithSummary("Uploads a PDF template with field layout and named recipient roles.");
 
         group.MapGet("/", ListAsync)
@@ -35,10 +38,12 @@ internal static class TemplateEndpoints
 
         group.MapPut("/{id:guid}", UpdateAsync)
             .WithName("UpdateTemplate")
+            .RequireAuthorization(StampdPolicies.SenderOrAdmin)
             .WithSummary("Updates a template's metadata, roles, and field layout. The source PDF is immutable.");
 
         group.MapPost("/{id:guid}/sign-immediate", SignImmediateAsync)
             .WithName("SignTemplateImmediate")
+            .RequireAuthorization(StampdPolicies.SenderOrAdmin)
             .WithSummary("Apply signer-supplied values to a stored template and return the signed PDF immediately. Skips the recipient workflow.");
 
         return builder;
@@ -48,6 +53,7 @@ internal static class TemplateEndpoints
         [FromBody] CreateTemplateRequest body,
         [FromServices] StampdDbContext db,
         [FromServices] IDocumentStorageProvider storage,
+        [FromServices] ICurrentActorContext actor,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(body);
@@ -85,7 +91,7 @@ internal static class TemplateEndpoints
             Description = body.Description,
             SourcePdfStorageKey = storageKey,
             SourcePdfSha256 = pdfHash,
-            CreatedBy = "api", // v1: single tenant + no auth; populate from principal in v2.
+            CreatedBy = actor.UserId is { Length: > 0 } userId ? userId : "api",
         };
 
         // Roles
