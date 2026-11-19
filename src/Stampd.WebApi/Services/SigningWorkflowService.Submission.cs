@@ -207,16 +207,6 @@ public sealed partial class SigningWorkflowService
         return (recipient.Status, request.Status, signedDocumentId, signedHash);
     }
 
-    /// <summary>
-    /// Picks the field-value dictionary that "owns" a given template field for the
-    /// multi-recipient finalize step. Resolution order:
-    /// <list type="number">
-    ///   <item>The recipient whose RoleId equals <paramref name="assignedRoleId"/>.</item>
-    ///   <item>The current submitter (covers single-recipient and pre-filled fields).</item>
-    ///   <item>The earliest-routing recipient with any submitted values (fallback).</item>
-    /// </list>
-    /// Returns null when nobody has submitted anything for this field.
-    /// </summary>
     /// <summary>SHA-256 thumbprint of the signing certificate, or "Unknown" without a provider.</summary>
     private async Task<string> SigningKeyIdentifierAsync(CancellationToken ct)
     {
@@ -229,6 +219,16 @@ public sealed partial class SigningWorkflowService
         return certificate.GetCertHashString(HashAlgorithmName.SHA256);
     }
 
+    /// <summary>
+    /// Picks the field-value dictionary that "owns" a given template field for the
+    /// multi-recipient finalize step. Resolution order:
+    /// <list type="number">
+    ///   <item>The recipient whose RoleId equals <paramref name="assignedRoleId"/>.</item>
+    ///   <item>The current submitter (covers single-recipient and pre-filled fields).</item>
+    ///   <item>The earliest-routing recipient with any submitted values (fallback).</item>
+    /// </list>
+    /// Returns null when nobody has submitted anything for this field.
+    /// </summary>
     private static IReadOnlyDictionary<int, ApiFieldValue>? ResolveFieldOwner(
         SigningRequest request,
         Recipient currentSubmitter,

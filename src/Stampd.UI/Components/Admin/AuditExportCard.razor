@@ -60,6 +60,10 @@
             var suffix = days is > 0 ? $"last-{days}-days" : "all";
             await Downloader.SaveAsync($"stampd-audit-{suffix}.csv", "text/csv", csv, CancellationToken.None);
         }
+        catch (HttpRequestException)
+        {
+            _exportError = "The audit export could not be downloaded. The API did not respond.";
+        }
         finally
         {
             _exporting = false;

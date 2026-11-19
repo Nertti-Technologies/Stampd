@@ -2,12 +2,13 @@ namespace Stampd.WebApi.Endpoints;
 
 /// <summary>
 /// v2.0 Slice C — admin-only read endpoints for the analytics section of the /admin
-/// dashboard. Three independent endpoints (funnel, time-to-sign, identity-verification)
-/// so the UI can refetch any single widget without re-running the others.
+/// dashboard. Five independent endpoints (funnel, time-to-sign, identity-verification,
+/// webhooks-health, by-sender) so the UI can refetch any single widget without
+/// re-running the others. Each lives in its own AdminAnalyticsEndpoints.*.cs file.
 /// </summary>
 /// <remarks>
-/// All three live under <c>/api/admin/analytics</c> and inherit the <c>Admin</c>-only
-/// policy from the adminGroup in Program.cs. None mutate state; they're pure
+/// All five live under <c>/api/admin/analytics</c> and inherit the <c>Admin</c>-only
+/// policy from the admin group in Hosting/EndpointMapping.cs. None mutate state; they're pure
 /// aggregations against the v1.3 epoch shadow columns + the v2.0 audit/actor schema.
 ///
 /// v2.2 #223 — each endpoint now ALSO runs the same aggregation over the equally-sized

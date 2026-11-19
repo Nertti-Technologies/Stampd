@@ -258,14 +258,21 @@
             return;
         }
 
-        var pdf = await Api.DownloadSignedDocumentAsync(_token, documentId, CancellationToken.None);
-        if (pdf is null)
+        try
         {
-            _downloadError = "The signed PDF could not be downloaded.";
-            return;
-        }
+            var pdf = await Api.DownloadSignedDocumentAsync(_token, documentId, CancellationToken.None);
+            if (pdf is null)
+            {
+                _downloadError = "The signed PDF could not be downloaded.";
+                return;
+            }
 
-        await Downloader.SaveAsync($"signed-{_detail.Id:N}.pdf", "application/pdf", pdf, CancellationToken.None);
+            await Downloader.SaveAsync($"signed-{_detail.Id:N}.pdf", "application/pdf", pdf, CancellationToken.None);
+        }
+        catch (HttpRequestException)
+        {
+            _downloadError = "The signed PDF could not be downloaded. The API did not respond.";
+        }
     }
 
     private string? ResolveRecipientName(Guid? recipientId)

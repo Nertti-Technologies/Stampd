@@ -172,8 +172,8 @@ internal static class PdfRevisionReader
         // Chain back through /Prev xrefs if needed. For our test inputs the object is
         // usually in the latest xref, but if it was set in an earlier revision (e.g.
         // /AcroForm created by the original signing pass and not touched since), we'll
-        // need to follow /Prev. v1.3 supports a single hop — multi-hop is rare in
-        // PdfSharp output but tracked as a future enhancement if it surfaces.
+        // need to follow /Prev. The lookup recurses, so it follows /Prev through any
+        // number of earlier revisions.
         while (cursor < pdf.Length)
         {
             if (StartsWithAt(pdf, cursor, TrailerKeyword))

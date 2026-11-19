@@ -101,9 +101,8 @@
         _loading = true;
         try
         {
-            // Fan-out fetches: all six endpoints are independent, so kick them off
-            // in parallel and let the page wait on the slowest. Cold-cache load time
-            // halves (or sixths) vs. sequential.
+            // Fan-out fetches: all eight endpoints are independent, so kick them off
+            // in parallel and let the page wait on the slowest.
             var summaryTask = Api.GetAdminDashboardSummaryAsync(string.Empty, CancellationToken.None);
             var trendTask = Api.GetAdminDashboardTrendAsync(string.Empty, days: 30, CancellationToken.None);
             var topTask = Api.GetAdminTopTemplatesAsync(string.Empty, take: 5, CancellationToken.None);
@@ -128,14 +127,14 @@
         }
     }
 
-    /// <summary>Analytics window changed — refetch just the three analytics widgets.</summary>
+    /// <summary>Analytics window changed — refetch just the four windowed analytics widgets.</summary>
     private async Task OnAnalyticsWindowChangedAsync(ChangeEventArgs e)
     {
         if (!int.TryParse(e.Value?.ToString(), out var days) || days <= 0) return;
         _analyticsDays = days;
 
-        // Only refetch the three analytics widgets; the summary tiles + trend +
-        // top-templates above don't read from _analyticsDays, so leave them as-is.
+        // Only refetch the four windowed widgets; the summary tiles, trend, top
+        // templates and webhook health don't read from _analyticsDays, so leave them as-is.
         var funnelTask = Api.GetAdminFunnelAsync(string.Empty, _analyticsDays, CancellationToken.None);
         var ttsTask = Api.GetAdminTimeToSignAsync(string.Empty, _analyticsDays, take: 10, CancellationToken.None);
         var ivTask = Api.GetAdminIdentityVerificationAsync(string.Empty, _analyticsDays, CancellationToken.None);
@@ -143,6 +142,7 @@
         _funnel = await funnelTask;
         _timeToSign = await ttsTask;
         _iv = await ivTask;
+        _bySender = await bySenderTask;
     }
 
 
