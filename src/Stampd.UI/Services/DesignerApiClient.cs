@@ -129,7 +129,25 @@ public sealed class DesignerApiClient
         }
 
         var error = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-        return (false, $"HTTP {(int)resp.StatusCode}: {error}");
+        return (false, ProblemDetail(error) ?? $"HTTP {(int)resp.StatusCode}: {error}");
+    }
+
+    /// <summary>The <c>detail</c> of a problem-details body, or null when there is none.</summary>
+    private static string? ProblemDetail(string body)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            return doc.RootElement.ValueKind == JsonValueKind.Object
+                && doc.RootElement.TryGetProperty("detail", out var detail)
+                && detail.ValueKind == JsonValueKind.String
+                    ? detail.GetString()
+                    : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     /// <summary>
