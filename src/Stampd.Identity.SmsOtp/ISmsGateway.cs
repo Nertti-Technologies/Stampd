@@ -19,9 +19,11 @@ public interface ISmsGateway
 }
 
 /// <summary>
-/// Logs SMS messages to the configured logger rather than dispatching them. Suitable for
-/// dev, tests, and demos — never for production. The OTP code appears in plain text in
-/// the logs, so this gateway is safe only when log access is restricted to developers.
+/// Discards SMS messages instead of dispatching them. Suitable for dev, tests and demos,
+/// never for production: outside the Development environment the host refuses to start
+/// with it unless <see cref="SmsOtpOptions.AllowMockGateway"/> is set. It writes only a
+/// masked phone number to stdout, never the message or the code; tests read messages
+/// through the <c>onSend</c> callback.
 /// </summary>
 public sealed class MockSmsGateway : ISmsGateway
 {
@@ -42,7 +44,7 @@ public sealed class MockSmsGateway : ISmsGateway
         ArgumentException.ThrowIfNullOrWhiteSpace(message);
 
         _onSend?.Invoke(phoneNumber, message);
-        Console.WriteLine($"[MockSmsGateway] to {phoneNumber}: {message}");
+        Console.WriteLine($"[MockSmsGateway] message to {SmsOtpProvider.MaskPhone(phoneNumber)} discarded.");
         return Task.CompletedTask;
     }
 }
