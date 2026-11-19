@@ -1,0 +1,33 @@
+@* v2.3 #231 — per-sender productivity. Mirrors the per-template /per-role
+   table shape so the page reads consistently. CreatedBy is the JWT sub,
+   so dev demos show the seeded admin/sender user IDs; production shows
+   whatever your IdP issues. *@
+@if (BySender is { Items.Count: > 0 })
+{
+    <div style="margin-top:1.25rem;">
+        <div class="signer-field-label">Per-sender productivity</div>
+        <div class="stampd-template-table" style="margin-top:0.5rem;">
+            <div class="stampd-request-row stampd-template-head" style="grid-template-columns: 2.5fr 1fr 1fr 1fr 1fr;">
+                <div>Sender</div>
+                <div>Dispatched</div>
+                <div>Completed</div>
+                <div>Completion %</div>
+                <div>Avg time-to-sign (min)</div>
+            </div>
+            @foreach (var s in BySender.Items)
+            {
+                <div class="stampd-request-row" style="grid-template-columns: 2.5fr 1fr 1fr 1fr 1fr;">
+                    <div style="font-weight:600;">@s.Sender</div>
+                    <div>@s.Dispatched</div>
+                    <div>@s.Completed @if (s.Voided > 0) { <span style="font-size:0.72rem; color: var(--stampd-muted);">(+@s.Voided voided)</span> }</div>
+                    <div>@s.CompletionRatePercent.ToString("0.#")%</div>
+                    <div>@(s.AvgTimeToSignMinutes == 0 ? "—" : s.AvgTimeToSignMinutes.ToString("0.#"))</div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public AdminBySender? BySender { get; set; }
+}

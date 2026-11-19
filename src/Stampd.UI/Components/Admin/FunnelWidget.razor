@@ -1,0 +1,149 @@
+@using static Stampd.UI.Components.Admin.DeltaChips
+
+<!-- Funnel -->
+@if (Funnel is not null)
+{
+    <div style="margin-top:1rem;">
+        <div class="signer-field-label">Drop-off funnel</div>
+        @{
+            var maxStage = Math.Max(1, Math.Max(Funnel.Stages.Invited, Math.Max(Funnel.Stages.Viewed, Funnel.Stages.Signed)));
+            string Bar(int v) => $"width:{(v * 100.0 / maxStage):F1}%;";
+        }
+        <div style="display:flex; flex-direction:column; gap:0.45rem; margin-top:0.5rem;">
+            <div style="display:grid; grid-template-columns:120px 1fr auto; gap:0.5rem; align-items:center;">
+                <span style="font-size:0.85rem;">Invited</span>
+                <div style="background: var(--stampd-surface-alt); height:18px; border-radius:4px; overflow:hidden;">
+                    <div style="@Bar(Funnel.Stages.Invited) height:100%; background:#0b3c6e;"></div>
+                </div>
+                <strong style="font-size:0.86rem;">@Funnel.Stages.Invited</strong>
+            </div>
+            <div style="display:grid; grid-template-columns:120px 1fr auto; gap:0.5rem; align-items:center;">
+                <span style="font-size:0.85rem;">Viewed</span>
+                <div style="background: var(--stampd-surface-alt); height:18px; border-radius:4px; overflow:hidden;">
+                    <div style="@Bar(Funnel.Stages.Viewed) height:100%; background:#1a5698;"></div>
+                </div>
+                <strong style="font-size:0.86rem;">@Funnel.Stages.Viewed</strong>
+            </div>
+            <div style="display:grid; grid-template-columns:120px 1fr auto; gap:0.5rem; align-items:center;">
+                <span style="font-size:0.85rem;">Signed</span>
+                <div style="background: var(--stampd-surface-alt); height:18px; border-radius:4px; overflow:hidden;">
+                    <div style="@Bar(Funnel.Stages.Signed) height:100%; background:#16a34a;"></div>
+                </div>
+                <strong style="font-size:0.86rem;">@Funnel.Stages.Signed</strong>
+            </div>
+        </div>
+        <div style="display:flex; gap:1rem; margin-top:0.6rem; font-size:0.8rem; color: var(--stampd-muted); flex-wrap:wrap;">
+            <span>Drop-off Invited → Viewed: <strong style="color: var(--stampd-fg);">@Funnel.DropOff.InvitedToViewedPercent.ToString("0.#")%</strong></span>
+            <span>Drop-off Viewed → Signed: <strong style="color: var(--stampd-fg);">@Funnel.DropOff.ViewedToSignedPercent.ToString("0.#")%</strong></span>
+            <span style="margin-left:auto;">
+                Conversion: <strong style="color: var(--stampd-fg);">@Funnel.ConversionRatePercent.ToString("0.#")%</strong>
+                @if (Funnel.Deltas is { } d)
+                {
+                    @RenderDeltaPoints(d.ConversionRatePercentPoints, lowerIsBetter: false)
+                }
+            </span>
+        </div>
+        @* v2.2 #223 — prior-window context line. Shows total signed delta
+           so admins see direction even when the rate looks flat. *@
+        @if (Funnel.PreviousWindow is { } prev && Funnel.Deltas is { } fd)
+        {
+            <div style="font-size:0.78rem; color: var(--stampd-muted); margin-top:0.35rem;">
+                Prior @Days days: @prev.Stages.Signed signed of @prev.Total
+                (@prev.ConversionRatePercent.ToString("0.#")% conversion).
+                Volume: @RenderDeltaPercent(fd.TotalPercent, lowerIsBetter: false)
+                · Signed: @RenderDeltaPercent(fd.SignedPercent, lowerIsBetter: false)
+            </div>
+        }
+
+        @* v2.3 #229 — weekday vs weekend split. Two mini-funnels side by
+           side so admins instantly see the conversion gap. Big gap → schedule
+           dispatches differently. No prior-window comparison here on purpose;
+           it's already a side-by-side, adding another dimension blurs the
+           insight. *@
+        @if (Funnel.ByDayBucket is { } bdb)
+        {
+            <div style="margin-top:1rem; padding-top:0.85rem; border-top:1px solid var(--stampd-border);">
+                <div class="signer-field-label">Weekday vs weekend dispatches</div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-top:0.5rem;">
+                    <div style="background: var(--stampd-surface-alt); border:1px solid var(--stampd-border); border-radius:8px; padding:0.7rem 0.85rem;">
+                        <div style="font-size:0.72rem; color: var(--stampd-muted); text-transform:uppercase; letter-spacing:0.05em;">Weekday (Mon–Fri UTC)</div>
+                        <div style="display:flex; align-items:baseline; gap:0.5rem; margin-top:0.3rem;">
+                            <strong style="font-size:1.2rem;">@bdb.Weekday.ConversionRatePercent.ToString("0.#")%</strong>
+                            <span style="font-size:0.78rem; color: var(--stampd-muted);">@bdb.Weekday.Signed / @bdb.Weekday.Invited</span>
+                        </div>
+                    </div>
+                    <div style="background: var(--stampd-surface-alt); border:1px solid var(--stampd-border); border-radius:8px; padding:0.7rem 0.85rem;">
+                        <div style="font-size:0.72rem; color: var(--stampd-muted); text-transform:uppercase; letter-spacing:0.05em;">Weekend (Sat–Sun UTC)</div>
+                        <div style="display:flex; align-items:baseline; gap:0.5rem; margin-top:0.3rem;">
+                            <strong style="font-size:1.2rem;">@bdb.Weekend.ConversionRatePercent.ToString("0.#")%</strong>
+                            <span style="font-size:0.78rem; color: var(--stampd-muted);">@bdb.Weekend.Signed / @bdb.Weekend.Invited</span>
+                        </div>
+                    </div>
+                </div>
+                @{
+                    var gap = bdb.Weekday.ConversionRatePercent - bdb.Weekend.ConversionRatePercent;
+                }
+                <div style="font-size:0.78rem; color: var(--stampd-muted); margin-top:0.4rem;">
+                    @if (bdb.Weekday.Invited == 0 || bdb.Weekend.Invited == 0)
+                    {
+                        <text>Not enough activity in one bucket to compare.</text>
+                    }
+                    else if (Math.Abs(gap) < 5)
+                    {
+                        <text>Conversion is within 5 pp across day buckets — no scheduling signal here.</text>
+                    }
+                    else if (gap > 0)
+                    {
+                        <text>Weekday dispatches convert <strong style="color: var(--stampd-fg);">@gap.ToString("0.#") pp</strong> higher than weekend ones.</text>
+                    }
+                    else
+                    {
+                        <text>Weekend dispatches convert <strong style="color: var(--stampd-fg);">@Math.Abs(gap).ToString("0.#") pp</strong> higher than weekday ones.</text>
+                    }
+                </div>
+            </div>
+        }
+
+        @* v2.2 #225 — request-weighted view. Sits below the recipient-level
+           funnel so admins read both at once: per-recipient flow vs request-
+           level completion. The weighted % treats a 2-of-3 request as 0.67
+           so multi-recipient workflows aren't punished for partial state. *@
+        @if (Funnel.RequestWeighted is { } rw)
+        {
+            <div style="margin-top:1rem; padding-top:0.85rem; border-top:1px solid var(--stampd-border);">
+                <div class="signer-field-label">Request-weighted completion</div>
+                <div style="display:flex; flex-wrap:wrap; gap:1.25rem; margin-top:0.5rem; font-size:0.85rem;">
+                    <div>
+                        <span style="color: var(--stampd-muted);">Weighted complete:</span>
+                        <strong style="font-size:1.05rem; margin-left:0.35rem;">@rw.WeightedCompletionPercent.ToString("0.#")%</strong>
+                        @if (rw.Deltas is { } rwd)
+                        {
+                            @RenderDeltaPoints(rwd.WeightedCompletionPercentPoints, lowerIsBetter: false)
+                        }
+                    </div>
+                    <div>
+                        <span style="color: var(--stampd-muted);">Requests:</span>
+                        <strong style="margin-left:0.35rem;">@rw.RequestCount</strong>
+                    </div>
+                    <div>
+                        <span style="color: var(--stampd-muted);">Fully completed:</span>
+                        <strong style="margin-left:0.35rem;">@rw.FullyCompletedRequests</strong>
+                        <span style="color: var(--stampd-muted); margin-left:0.25rem; font-size:0.78rem;">
+                            (@(rw.RequestCount == 0 ? "0" : Math.Round(rw.FullyCompletedRequests * 100.0 / rw.RequestCount, 1).ToString("0.#"))% all-signed)
+                        </span>
+                    </div>
+                </div>
+                <div style="font-size:0.72rem; color: var(--stampd-muted); margin-top:0.35rem; font-style:italic;">
+                    Each request contributes <code>signed ÷ recipients</code> to the average — a 2-of-3 signed request scores 0.67, not 0.
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public AdminAnalyticsFunnel? Funnel { get; set; }
+
+    /// <summary>Analytics window in days; labels the prior-window context line.</summary>
+    [Parameter] public int Days { get; set; }
+}

@@ -1,0 +1,108 @@
+@inject DesignerApiClient Api
+
+<!-- v2.0 Slice D — danger zone: cleanup demo data. Renders in any env but the
+     endpoint itself gates by environment + Stampd:Admin:AllowDemoCleanup. -->
+<section class="stampd-card" style="border:1px solid #fecaca;">
+    <h2 class="stampd-card-title" style="color:#b91c1c;">Danger zone</h2>
+    <p class="stampd-page-subtitle" style="margin-top:0.25rem;">
+        Wipe all signing-workflow data (templates are preserved). Useful for
+        resetting the demo between walkthroughs. Audit trail, OTP challenges,
+        and webhook deliveries are deleted along with the signing requests.
+    </p>
+    @if (_cleanupResult is not null)
+    {
+        <div style="margin-top:0.75rem; padding:0.75rem 1rem; background: var(--stampd-surface-alt); border:1px solid var(--stampd-border); border-radius:8px; font-size:0.85rem;">
+            <strong>Cleanup complete.</strong>
+            Deleted: @_cleanupResult.SigningRequestsDeleted signing requests,
+            @_cleanupResult.RecipientsDeleted recipients,
+            @_cleanupResult.SignedDocumentsDeleted signed documents,
+            @_cleanupResult.AuditEventsDeleted audit events,
+            @_cleanupResult.OtpChallengesDeleted OTP challenges,
+            @_cleanupResult.WebhookDeliveriesDeleted webhook deliveries.
+        </div>
+    }
+    @if (_cleanupError is not null)
+    {
+        <div class="signer-error" style="margin-top:0.75rem;">@_cleanupError</div>
+    }
+    <div style="display:flex; gap:0.5rem; margin-top:0.75rem;">
+        @if (!_confirmingCleanup)
+        {
+            <button type="button"
+                    class="stampd-btn"
+                    style="background:#dc2626; color:white; border-color:#dc2626;"
+                    @onclick="() => _confirmingCleanup = true">
+                Reset demo data
+            </button>
+        }
+        else
+        {
+            <span style="font-size:0.9rem; line-height:2.25rem;">
+                Are you sure? This wipes every signing request in the tenant.
+            </span>
+            <button type="button"
+                    class="stampd-btn"
+                    style="background:#dc2626; color:white; border-color:#dc2626;"
+                    disabled="@_cleaning"
+                    @onclick="ConfirmCleanupAsync">
+                @(_cleaning ? "Wiping…" : "Yes, delete everything")
+            </button>
+            <button type="button"
+                    class="stampd-btn stampd-btn--ghost"
+                    disabled="@_cleaning"
+                    @onclick="() => _confirmingCleanup = false">
+                Cancel
+            </button>
+        }
+    </div>
+</section>
+
+@code {
+    /// <summary>
+    /// Reloads the page's dashboard data after a successful cleanup.
+    /// </summary>
+    /// <remarks>
+    /// Hidden coupling with AdminDashboard.ReloadAfterCleanupAsync: this is a plain
+    /// <see cref="Func{TResult}"/>, deliberately not an EventCallback. Invoking an
+    /// EventCallback would render the page as soon as its reload awaits, and the
+    /// reload sets the page's loading flag, so that render would swap the page to
+    /// "Loading…" and unmount this card, losing the cleanup result shown below.
+    /// The page repaints itself once the reload finishes.
+    /// </remarks>
+    [Parameter, EditorRequired] public Func<Task> OnDataReset { get; set; } = default!;
+
+    // v2.0 Slice D — danger zone state.
+    private bool _confirmingCleanup;
+    private bool _cleaning;
+    private CleanupDemoResult? _cleanupResult;
+    private string? _cleanupError;
+
+    private async Task ConfirmCleanupAsync()
+    {
+        _cleaning = true;
+        _cleanupError = null;
+        try
+        {
+            var result = await Api.CleanupDemoAsync(string.Empty, CancellationToken.None);
+            if (result is null)
+            {
+                _cleanupError = "Cleanup endpoint rejected the call. In non-Development environments you must opt in via Stampd:Admin:AllowDemoCleanup=true.";
+            }
+            else
+            {
+                _cleanupResult = result;
+                // Refresh the dashboard so the tiles reflect the post-cleanup state.
+                await OnDataReset();
+            }
+        }
+        catch (Exception ex)
+        {
+            _cleanupError = ex.Message;
+        }
+        finally
+        {
+            _cleaning = false;
+            _confirmingCleanup = false;
+        }
+    }
+}

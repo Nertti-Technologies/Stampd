@@ -1,0 +1,132 @@
+@using static Stampd.UI.Components.Admin.DeltaChips
+
+<!-- Identity verification metrics card -->
+@if (Iv is not null)
+{
+    <div style="margin-top:1.25rem;">
+        <div class="signer-field-label">Identity verification (this window)</div>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:0.6rem; margin-top:0.5rem;">
+            @{ var ivTile = "background: var(--stampd-surface-alt); border:1px solid var(--stampd-border); border-radius:8px; padding:0.6rem 0.85rem;"; }
+            <div style="@ivTile">
+                <div style="font-size:0.72rem; color: var(--stampd-muted); text-transform:uppercase; letter-spacing:0.05em;">Required</div>
+                <div style="font-size:1.2rem; font-weight:700;">@Iv.RequiredCount</div>
+                @if (Iv.Deltas is { } rd)
+                {
+                    <div style="font-size:0.72rem; margin-top:2px;">@RenderDeltaPercent(rd.RequiredCountPercent, lowerIsBetter: false)</div>
+                }
+            </div>
+            <div style="@ivTile">
+                <div style="font-size:0.72rem; color: var(--stampd-muted); text-transform:uppercase; letter-spacing:0.05em;">Verified</div>
+                <div style="font-size:1.2rem; font-weight:700; color:#16a34a;">@Iv.VerifiedCount</div>
+                <div style="font-size:0.72rem; color: var(--stampd-muted);">
+                    @Iv.VerifyRatePercent.ToString("0.#")% success
+                    @if (Iv.Deltas is { } vd)
+                    {
+                        @RenderDeltaPoints(vd.VerifyRatePercentPoints, lowerIsBetter: false)
+                    }
+                </div>
+            </div>
+            <div style="@ivTile">
+                <div style="font-size:0.72rem; color: var(--stampd-muted); text-transform:uppercase; letter-spacing:0.05em;">OTP initiates</div>
+                <div style="font-size:1.2rem; font-weight:700;">@Iv.InitiatesCount</div>
+                @if (Iv.Deltas is { } id)
+                {
+                    <div style="font-size:0.72rem; margin-top:2px;">@RenderDeltaPercent(id.InitiatesCountPercent, lowerIsBetter: false)</div>
+                }
+            </div>
+            <div style="@ivTile">
+                <div style="font-size:0.72rem; color: var(--stampd-muted); text-transform:uppercase; letter-spacing:0.05em;">Locked out</div>
+                <div style="font-size:1.2rem; font-weight:700; color:#dc2626;">@Iv.LockedOutCount</div>
+                <div style="font-size:0.72rem; color: var(--stampd-muted);">
+                    Hit max-attempts threshold
+                    @if (Iv.Deltas is { } ld)
+                    {
+                        @* Lower lockouts are better — flip the color sense. *@
+                        @RenderDeltaPercent(ld.LockedOutCountPercent, lowerIsBetter: true)
+                    }
+                </div>
+            </div>
+        </div>
+
+        @* v2.2 #224 — per-channel breakdown. Two small stacked bars: one for
+           "OTP initiates by channel" (volume) and one for "Locked out by
+           channel" (which method is taking the brute-force pressure). KBA
+           initiates surface as the verified count (no separate attempt log)
+           which we flag in the legend so admins don't misread it. *@
+        @if (Iv.ByChannel is { } bc)
+        {
+            var totalInit = bc.Email.InitiatesCount + bc.Sms.InitiatesCount + bc.Kba.InitiatesCount;
+            var totalLocked = bc.Email.LockedOutCount + bc.Sms.LockedOutCount + bc.Kba.LockedOutCount;
+            <div style="margin-top:1rem; padding-top:0.85rem; border-top:1px solid var(--stampd-border);">
+                <div class="signer-field-label">By channel</div>
+                <div style="display:grid; grid-template-columns: 130px 1fr; gap:0.6rem; margin-top:0.5rem; font-size:0.82rem; align-items:center;">
+                    <div style="color: var(--stampd-muted);">OTP initiates</div>
+                    <div>
+                        @if (totalInit == 0)
+                        {
+                            <span style="color: var(--stampd-muted);">No activity in this window.</span>
+                        }
+                        else
+                        {
+                            <div style="display:flex; height:14px; border-radius:4px; overflow:hidden; background: var(--stampd-surface-alt);">
+                                <div title="Email: @bc.Email.InitiatesCount"
+                                     style="width:@(StackPct(bc.Email.InitiatesCount, totalInit))%; background:#0b3c6e;"></div>
+                                <div title="SMS: @bc.Sms.InitiatesCount"
+                                     style="width:@(StackPct(bc.Sms.InitiatesCount, totalInit))%; background:#1a5698;"></div>
+                                <div title="KBA: @bc.Kba.InitiatesCount (proxied from verified — no separate attempt log)"
+                                     style="width:@(StackPct(bc.Kba.InitiatesCount, totalInit))%; background:#16a34a;"></div>
+                            </div>
+                            <div style="display:flex; gap:0.85rem; margin-top:0.3rem; font-size:0.75rem; color: var(--stampd-muted);">
+                                <span><span style="display:inline-block; width:8px; height:8px; background:#0b3c6e; border-radius:2px; margin-right:3px;"></span> Email @bc.Email.InitiatesCount</span>
+                                <span><span style="display:inline-block; width:8px; height:8px; background:#1a5698; border-radius:2px; margin-right:3px;"></span> SMS @bc.Sms.InitiatesCount</span>
+                                <span><span style="display:inline-block; width:8px; height:8px; background:#16a34a; border-radius:2px; margin-right:3px;"></span> KBA @bc.Kba.InitiatesCount*</span>
+                            </div>
+                        }
+                    </div>
+                    <div style="color: var(--stampd-muted);">Locked out</div>
+                    <div>
+                        @if (totalLocked == 0)
+                        {
+                            <span style="color: var(--stampd-muted);">None.</span>
+                        }
+                        else
+                        {
+                            <div style="display:flex; height:14px; border-radius:4px; overflow:hidden; background: var(--stampd-surface-alt);">
+                                <div title="Email: @bc.Email.LockedOutCount"
+                                     style="width:@(StackPct(bc.Email.LockedOutCount, totalLocked))%; background:#dc2626;"></div>
+                                <div title="SMS: @bc.Sms.LockedOutCount"
+                                     style="width:@(StackPct(bc.Sms.LockedOutCount, totalLocked))%; background:#f97316;"></div>
+                                @* KBA lockout is always 0 today (no attempt log) — render the slice anyway for layout consistency when adopters add their own tracking. *@
+                                <div title="KBA: @bc.Kba.LockedOutCount (no separate attempt log)"
+                                     style="width:@(StackPct(bc.Kba.LockedOutCount, totalLocked))%; background:#a16207;"></div>
+                            </div>
+                            <div style="display:flex; gap:0.85rem; margin-top:0.3rem; font-size:0.75rem; color: var(--stampd-muted);">
+                                <span><span style="display:inline-block; width:8px; height:8px; background:#dc2626; border-radius:2px; margin-right:3px;"></span> Email @bc.Email.LockedOutCount</span>
+                                <span><span style="display:inline-block; width:8px; height:8px; background:#f97316; border-radius:2px; margin-right:3px;"></span> SMS @bc.Sms.LockedOutCount</span>
+                                <span><span style="display:inline-block; width:8px; height:8px; background:#a16207; border-radius:2px; margin-right:3px;"></span> KBA @bc.Kba.LockedOutCount</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div style="font-size:0.7rem; color: var(--stampd-muted); margin-top:0.5rem; font-style:italic;">
+                    * KBA doesn't flow through the OTP store, so its initiate count is proxied from its verified count.
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public AdminIdentityVerification? Iv { get; set; }
+
+    /// <summary>
+    /// Stacked-bar width helper. Returns the percentage as an invariant-formatted
+    /// number with one decimal so the inline-style string stays culture-stable
+    /// across server locales (otherwise a comma decimal separator from a de-DE
+    /// locale would corrupt the CSS).
+    /// </summary>
+    private static string StackPct(int part, int total) =>
+        total == 0
+            ? "0"
+            : (part * 100.0 / total).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+}

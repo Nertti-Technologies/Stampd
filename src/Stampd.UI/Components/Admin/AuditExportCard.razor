@@ -1,0 +1,68 @@
+@inject DesignerApiClient Api
+@inject FileDownloader Downloader
+
+@* v2.3 #232 — audit-trail CSV export. Native <a download> avoids round-
+   tripping through Blazor; the WebApi streams the CSV directly to disk.
+   Filters mirror the audit read API: window in days, event type, actor.
+   Adding a UI-level filter editor here would be feature creep; the URL
+   query-string is the contract and savvy users can hand-edit. *@
+<section class="stampd-card">
+    <h2 class="stampd-card-title">Audit-trail export</h2>
+    <p class="stampd-page-subtitle" style="margin-top:0.25rem;">
+        Stream the tenant's audit trail as CSV for compliance teams. The default
+        export covers the same window as the analytics widgets (@Days days).
+        Increase the window via the selector above. For finer filters, call
+        <code>GET /api/admin/audit/export</code> with <code>?from=</code>, <code>?to=</code>,
+        <code>?eventType=</code> or <code>?actorUserId=</code>.
+    </p>
+    <div style="display:flex; align-items:center; gap:0.75rem; margin-top:0.6rem; flex-wrap:wrap;">
+        <button type="button" class="stampd-btn stampd-btn--primary"
+                disabled="@_exporting"
+                @onclick="() => ExportAuditAsync(Days)">
+            Download CSV (last @Days days)
+        </button>
+        <button type="button" class="stampd-btn stampd-btn--ghost"
+                disabled="@_exporting"
+                @onclick="() => ExportAuditAsync(null)">
+            Download all (capped at 250k rows)
+        </button>
+    </div>
+    @if (_exportError is not null)
+    {
+        <div class="signer-error" role="alert" style="margin-top:0.75rem;">@_exportError</div>
+    }
+</section>
+
+@code {
+    /// <summary>
+    /// The analytics window in days, owned by the page's selector. The first button
+    /// exports exactly this window.
+    /// </summary>
+    [Parameter] public int Days { get; set; }
+
+    // Audit export state.
+    private bool _exporting;
+    private string? _exportError;
+
+    private async Task ExportAuditAsync(int? days)
+    {
+        _exporting = true;
+        _exportError = null;
+        try
+        {
+            var csv = await Api.DownloadAuditExportAsync(string.Empty, days, CancellationToken.None);
+            if (csv is null)
+            {
+                _exportError = "The audit export could not be downloaded. Check that you are signed in as an Admin.";
+                return;
+            }
+
+            var suffix = days is > 0 ? $"last-{days}-days" : "all";
+            await Downloader.SaveAsync($"stampd-audit-{suffix}.csv", "text/csv", csv, CancellationToken.None);
+        }
+        finally
+        {
+            _exporting = false;
+        }
+    }
+}

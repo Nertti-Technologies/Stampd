@@ -1,0 +1,76 @@
+@* v2.3 #230 — webhook delivery observability. Shows the queue depth and
+   recent failures so admins can spot a broken subscriber without opening
+   server logs. Read-only — the actual retry flow is handled by the outbox
+   worker; this widget just surfaces what the worker has been doing. *@
+@if (Webhooks is not null)
+{
+    <section class="stampd-card">
+        <h2 class="stampd-card-title">Webhook health</h2>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:0.6rem; margin-top:0.6rem;">
+            @{ var whTile = "background: var(--stampd-surface-alt); border:1px solid var(--stampd-border); border-radius:8px; padding:0.6rem 0.85rem;"; }
+            <div style="@whTile">
+                <div style="font-size:0.72rem; color: var(--stampd-muted); text-transform:uppercase; letter-spacing:0.05em;">Endpoints</div>
+                <div style="font-size:1.2rem; font-weight:700;">@Webhooks.ActiveEndpoints / @Webhooks.TotalEndpoints</div>
+                <div style="font-size:0.72rem; color: var(--stampd-muted);">active / total</div>
+            </div>
+            <div style="@whTile">
+                <div style="font-size:0.72rem; color: var(--stampd-muted); text-transform:uppercase; letter-spacing:0.05em;">Degraded</div>
+                <div style="font-size:1.2rem; font-weight:700; color:@(Webhooks.DegradedEndpoints == 0 ? "#16a34a" : "#dc2626");">@Webhooks.DegradedEndpoints</div>
+                <div style="font-size:0.72rem; color: var(--stampd-muted);">consecutive failures &gt; 0</div>
+            </div>
+            <div style="@whTile">
+                <div style="font-size:0.72rem; color: var(--stampd-muted); text-transform:uppercase; letter-spacing:0.05em;">Retry queue</div>
+                <div style="font-size:1.2rem; font-weight:700;">@Webhooks.RetryingDeliveries</div>
+                <div style="font-size:0.72rem; color: var(--stampd-muted);">@Webhooks.PendingDeliveries scheduled</div>
+            </div>
+            <div style="@whTile">
+                <div style="font-size:0.72rem; color: var(--stampd-muted); text-transform:uppercase; letter-spacing:0.05em;">Failures (24h)</div>
+                <div style="font-size:1.2rem; font-weight:700; color:@(Webhooks.FailuresLast24h == 0 ? "#16a34a" : "#dc2626");">@Webhooks.FailuresLast24h</div>
+            </div>
+        </div>
+
+        @if (Webhooks.RecentFailures.Count > 0)
+        {
+            <div style="margin-top:1rem;">
+                <div class="signer-field-label">Recent failed deliveries</div>
+                <div class="stampd-template-table" style="margin-top:0.5rem;">
+                    <div class="stampd-request-row stampd-template-head" style="grid-template-columns: 2.5fr 1.2fr 0.6fr 0.6fr 1.5fr 1.2fr;">
+                        <div>Endpoint</div>
+                        <div>Event</div>
+                        <div>Attempt</div>
+                        <div>HTTP</div>
+                        <div>Error</div>
+                        <div>Next retry</div>
+                    </div>
+                    @foreach (var f in Webhooks.RecentFailures)
+                    {
+                        <div class="stampd-request-row" style="grid-template-columns: 2.5fr 1.2fr 0.6fr 0.6fr 1.5fr 1.2fr;">
+                            <div style="font-family:monospace; font-size:0.78rem;">@f.EndpointUrl</div>
+                            <div style="font-size:0.82rem;">@f.EventType</div>
+                            <div>@f.AttemptCount</div>
+                            <div style="color:@(f.LastResponseStatus is null or >= 500 ? "#dc2626" : "var(--stampd-fg)");">
+                                @(f.LastResponseStatus?.ToString() ?? "—")
+                            </div>
+                            <div style="font-size:0.78rem; color: var(--stampd-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="@f.LastErrorMessage">
+                                @(f.LastErrorMessage ?? "—")
+                            </div>
+                            <div style="font-size:0.78rem; color: var(--stampd-muted);">
+                                @f.NextAttemptAtUtc.LocalDateTime.ToString("yyyy-MM-dd HH:mm")
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+        else
+        {
+            <div style="font-size:0.85rem; color: var(--stampd-muted); margin-top:0.85rem;">
+                No failed deliveries on file. Outbox queue is healthy.
+            </div>
+        }
+    </section>
+}
+
+@code {
+    [Parameter] public AdminWebhooksHealth? Webhooks { get; set; }
+}

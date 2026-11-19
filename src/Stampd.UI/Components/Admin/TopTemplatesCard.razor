@@ -1,0 +1,44 @@
+<!-- Top templates -->
+<section class="stampd-card">
+    <h2 class="stampd-card-title">Most-used templates</h2>
+    @if (TopTemplates is null || TopTemplates.Items.Count == 0)
+    {
+        <p class="stampd-page-subtitle">No templates with signing activity yet.</p>
+    }
+    else
+    {
+        <div class="stampd-template-table" style="margin-top:0.75rem;">
+            <div class="stampd-request-row stampd-template-head" style="grid-template-columns: 2.5fr 1fr 1fr 1fr;">
+                <div>Template</div>
+                <div>Requests</div>
+                <div>Completed</div>
+                <div>Completion rate</div>
+            </div>
+            @foreach (var t in TopTemplates.Items)
+            {
+                <div class="stampd-request-row" style="grid-template-columns: 2.5fr 1fr 1fr 1fr;">
+                    <div>
+                        <div style="font-weight:600;">@t.TemplateName</div>
+                        <div style="font-size:0.72rem; color: var(--stampd-muted); font-family: ui-monospace, monospace;">@t.TemplateId.ToString("N")[..8]</div>
+                    </div>
+                    <div>@t.Total</div>
+                    <div>@t.Completed</div>
+                    <div>
+                        <span class="stampd-chip @CompletionChipClass(t.CompletionRatePercent)">@t.CompletionRatePercent.ToString("0.#")%</span>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter] public AdminTopTemplates? TopTemplates { get; set; }
+
+    private static string CompletionChipClass(double pct) => pct switch
+    {
+        >= 80 => "stampd-chip--success",
+        >= 50 => "stampd-chip--accent",
+        _ => "stampd-chip--danger",
+    };
+}

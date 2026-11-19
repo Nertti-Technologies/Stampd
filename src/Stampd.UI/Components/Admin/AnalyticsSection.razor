@@ -1,0 +1,38 @@
+<!-- v2.0 Slice C — analytics. Three widgets driven by a single window selector. -->
+<section class="stampd-card">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap;">
+        <h2 class="stampd-card-title" style="margin-bottom:0;">Analytics</h2>
+        <div style="display:flex; align-items:center; gap:0.5rem; font-size:0.84rem; color: var(--stampd-muted);">
+            <label for="analytics-window">Window</label>
+            <select id="analytics-window"
+                    class="stampd-auth-input"
+                    style="width:auto; padding:0.3rem 0.55rem; font-size:0.84rem;"
+                    value="@Days"
+                    @onchange="OnWindowChanged">
+                <option value="7">Last 7 days</option>
+                <option value="30">Last 30 days</option>
+                <option value="90">Last 90 days</option>
+            </select>
+        </div>
+    </div>
+
+    <FunnelWidget Funnel="Funnel" Days="Days" />
+
+    <IdentityVerificationWidget Iv="Iv" />
+
+    <TimeToSignWidget TimeToSign="TimeToSign" />
+
+    <BySenderWidget BySender="BySender" />
+</section>
+
+@code {
+    // v2.0 Slice C — the page owns the window and the fetched data (it loads them
+    // in one fan-out alongside the summary); this section renders the selector and
+    // hands each widget its slice. OnWindowChanged is the page's refetch handler.
+    [Parameter] public int Days { get; set; }
+    [Parameter] public EventCallback<ChangeEventArgs> OnWindowChanged { get; set; }
+    [Parameter] public AdminAnalyticsFunnel? Funnel { get; set; }
+    [Parameter] public AdminTimeToSign? TimeToSign { get; set; }
+    [Parameter] public AdminIdentityVerification? Iv { get; set; }
+    [Parameter] public AdminBySender? BySender { get; set; }
+}

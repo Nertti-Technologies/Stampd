@@ -1,0 +1,99 @@
+@using static Stampd.UI.Components.Admin.DeltaChips
+
+<!-- Time-to-sign table -->
+@if (TimeToSign is not null && TimeToSign.Items.Count > 0)
+{
+    <div style="margin-top:1.25rem;">
+        <div class="signer-field-label">Time-to-sign by template (top @TimeToSign.Take)</div>
+        <div class="stampd-template-table" style="margin-top:0.5rem;">
+            <div class="stampd-request-row stampd-template-head" style="grid-template-columns: 2.5fr 1fr 1fr 1fr;">
+                <div>Template</div>
+                <div>Signed</div>
+                <div>Avg (min)</div>
+                <div>Median (min)</div>
+            </div>
+            @foreach (var t in TimeToSign.Items)
+            {
+                <div class="stampd-request-row" style="grid-template-columns: 2.5fr 1fr 1fr 1fr;">
+                    <div>
+                        <div style="font-weight:600;">@t.TemplateName</div>
+                        @if (t.PreviousWindow is { } pw)
+                        {
+                            <div style="font-size:0.72rem; color: var(--stampd-muted); margin-top:2px;">
+                                Prior: @pw.SignedCount signed, avg @pw.AvgMinutes.ToString("0.#")m, med @pw.MedianMinutes.ToString("0.#")m
+                            </div>
+                        }
+                    </div>
+                    <div>@t.SignedCount</div>
+                    <div>
+                        @t.AvgMinutes.ToString("0.#")
+                        @if (t.AvgMinutesDeltaPercent is { } adp)
+                        {
+                            @* Lower time-to-sign is better, so flip color sense. *@
+                            <div style="font-size:0.72rem; margin-top:2px;">@RenderDeltaPercent(adp, lowerIsBetter: true)</div>
+                        }
+                    </div>
+                    <div>
+                        @t.MedianMinutes.ToString("0.#")
+                        @if (t.MedianMinutesDeltaPercent is { } mdp)
+                        {
+                            <div style="font-size:0.72rem; margin-top:2px;">@RenderDeltaPercent(mdp, lowerIsBetter: true)</div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+        @* v2.2 #226 — per-role segmentation. Same table shape as per-template
+           so the page reads consistently — admins toggle between two views of
+           the same data. Aggregates across templates so a tenant with 5
+           templates each having an "Approver" role sees one Approver row. *@
+        @if (TimeToSign.ByRole is { Count: > 0 } byRole)
+        {
+            <div style="margin-top:1.25rem;">
+                <div class="signer-field-label">Time-to-sign by role</div>
+                <div class="stampd-template-table" style="margin-top:0.5rem;">
+                    <div class="stampd-request-row stampd-template-head" style="grid-template-columns: 2.5fr 1fr 1fr 1fr;">
+                        <div>Role</div>
+                        <div>Signed</div>
+                        <div>Avg (min)</div>
+                        <div>Median (min)</div>
+                    </div>
+                    @foreach (var r in byRole)
+                    {
+                        <div class="stampd-request-row" style="grid-template-columns: 2.5fr 1fr 1fr 1fr;">
+                            <div>
+                                <div style="font-weight:600;">@r.RoleName</div>
+                                @if (r.PreviousWindow is { } pwr)
+                                {
+                                    <div style="font-size:0.72rem; color: var(--stampd-muted); margin-top:2px;">
+                                        Prior: @pwr.SignedCount signed, avg @pwr.AvgMinutes.ToString("0.#")m, med @pwr.MedianMinutes.ToString("0.#")m
+                                    </div>
+                                }
+                            </div>
+                            <div>@r.SignedCount</div>
+                            <div>
+                                @r.AvgMinutes.ToString("0.#")
+                                @if (r.AvgMinutesDeltaPercent is { } radp)
+                                {
+                                    <div style="font-size:0.72rem; margin-top:2px;">@RenderDeltaPercent(radp, lowerIsBetter: true)</div>
+                                }
+                            </div>
+                            <div>
+                                @r.MedianMinutes.ToString("0.#")
+                                @if (r.MedianMinutesDeltaPercent is { } rmdp)
+                                {
+                                    <div style="font-size:0.72rem; margin-top:2px;">@RenderDeltaPercent(rmdp, lowerIsBetter: true)</div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public AdminTimeToSign? TimeToSign { get; set; }
+}
