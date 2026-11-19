@@ -15,13 +15,11 @@ namespace Stampd.WebApi.Tests;
 public class StampdWebApplicationFactory : WebApplicationFactory<Program>
 {
     private readonly string _isolatedRoot;
-    // v3.0 alpha.1 — held open for the lifetime of the factory so the in-memory
-    // SQLite database doesn't disappear when EF Core releases its transient
-    // connection. Each factory instance gets its own connection, so per-test
-    // state is fully isolated (the file-path approach was being overridden by
-    // some other config source we couldn't trace — a private :memory: connection
-    // is bulletproof).
-    private readonly SqliteConnection _dbConnection;
+    // A database file in this factory's temp folder, so per-factory state is isolated.
+    // Each DbContext opens its own connection: background workers (bulk send, webhooks)
+    // query while the test does, and one shared SqliteConnection is not safe across
+    // threads. SQLite's busy timeout serialises the writers.
+    private readonly string _connectionString;
 
     /// <summary>
     /// Single public parameterless ctor — xUnit's <c>IClassFixture&lt;T&gt;</c>
@@ -34,8 +32,12 @@ public class StampdWebApplicationFactory : WebApplicationFactory<Program>
     {
         _isolatedRoot = Path.Combine(Path.GetTempPath(), $"stampd-tests-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_isolatedRoot);
-        _dbConnection = new SqliteConnection("Data Source=:memory:");
-        _dbConnection.Open();
+        _connectionString = new SqliteConnectionStringBuilder
+        {
+            DataSource = Path.Combine(_isolatedRoot, "stampd-tests.db"),
+            // No pooling, so no connection keeps the file open when Dispose deletes it.
+            Pooling = false,
+        }.ToString();
     }
 
     /// <summary>
@@ -111,9 +113,9 @@ public class StampdWebApplicationFactory : WebApplicationFactory<Program>
         });
 
         // v3.0 alpha.1 — replace whatever DbContextOptions<StampdDbContext>
-        // Program.cs registered with one bound to our held-open in-memory
-        // connection. Then EnsureCreated so the schema lands without needing
-        // the per-provider migration assembly to know about an in-memory path.
+        // Program.cs registered with one bound to this factory's database file.
+        // Then EnsureCreated so the schema lands without needing the per-provider
+        // migration assembly.
         builder.ConfigureTestServices(services =>
         {
             var optionsDescriptor = services.SingleOrDefault(
@@ -124,7 +126,7 @@ public class StampdWebApplicationFactory : WebApplicationFactory<Program>
             }
 
             services.AddDbContext<StampdDbContext>(options =>
-                options.UseSqlite(_dbConnection));
+                options.UseSqlite(_connectionString));
         });
 
         base.ConfigureWebHost(builder);
@@ -134,25 +136,21 @@ public class StampdWebApplicationFactory : WebApplicationFactory<Program>
     {
         var host = base.CreateHost(builder);
 
-        // EnsureCreated builds the full model schema on the in-memory connection
-        // on first build. Skipping the migration history table since :memory:
-        // doesn't need provenance and EF's migration scaffolding doesn't ship
-        // an in-memory variant.
+        // EnsureCreated builds the full model schema on first build, and is a no-op
+        // for hosts derived through WithWebHostBuilder, which share the file.
         using var scope = host.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<StampdDbContext>();
         db.Database.EnsureCreated();
+
+        // WAL lets the background workers read while a test writes, instead of each
+        // waiting out the other's lock. The mode is stored in the file.
+        db.Database.ExecuteSqlRaw("PRAGMA journal_mode=WAL;");
 
         return host;
     }
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing)
-        {
-            // Close the connection first — once it closes, the in-memory DB
-            // is gone too, which is exactly what we want.
-            _dbConnection.Dispose();
-        }
         base.Dispose(disposing);
         try
         {
