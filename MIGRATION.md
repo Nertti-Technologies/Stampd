@@ -1,4 +1,4 @@
-# Migrating Stampd v3.1.x → v3.2.0 (unreleased)
+# Migrating Stampd v3.1.x → v3.2.0
 
 v3.2.0 fixes signing-request lifecycle and delivery defects. Apply the V18 migration. Several fixes change behaviour that integrations may have relied on, so review the changes below.
 
