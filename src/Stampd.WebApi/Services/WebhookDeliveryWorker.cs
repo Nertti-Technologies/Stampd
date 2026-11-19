@@ -154,8 +154,8 @@ internal sealed class WebhookDeliveryWorker : BackgroundService
         if (delivery.AttemptCount >= MaxAttempts)
         {
             _logger.LogWarning(
-                "Webhook delivery {DeliveryId} to {Url} gave up after {Attempts} attempts.",
-                delivery.Id, endpoint.Url, delivery.AttemptCount);
+                "Webhook delivery {DeliveryId} to endpoint {EndpointId} gave up after {Attempts} attempts.",
+                delivery.Id, endpoint.Id, delivery.AttemptCount);
             db.WebhookDeliveries.Remove(delivery);
             return;
         }

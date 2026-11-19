@@ -4,6 +4,8 @@ using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Compact;
 
+using Stampd.Observability;
+
 namespace Stampd.WebApi.Observability;
 
 internal static class SerilogConfiguration
@@ -31,6 +33,7 @@ internal static class SerilogConfiguration
                 .Enrich.WithMachineName()
                 .Enrich.WithThreadId()
                 .Enrich.WithProperty("Application", "Stampd.WebApi")
+                .Enrich.With<AccessTokenPathRedactionEnricher>()
                 .MinimumLevel.Information()
                 .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
                 .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)

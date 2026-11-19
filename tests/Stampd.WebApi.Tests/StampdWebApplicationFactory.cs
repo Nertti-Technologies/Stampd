@@ -56,6 +56,13 @@ public class StampdWebApplicationFactory : WebApplicationFactory<Program>
     {
         builder.UseEnvironment(EnvironmentName());
 
+        // Program reads the log directory while the WebApplicationBuilder is still being
+        // configured, before ConfigureAppConfiguration sources apply, so it has to be a
+        // host setting. Without this, test hosts log to the developer's ~/.stampd/logs.
+        var logDirectory = ExtraConfig()?.GetValueOrDefault("Stampd:Logging:Directory")
+            ?? Path.Combine(_isolatedRoot, "logs");
+        builder.UseSetting("Stampd:Logging:Directory", logDirectory);
+
         builder.ConfigureAppConfiguration((_, config) =>
         {
             config.AddInMemoryCollection(new Dictionary<string, string?>

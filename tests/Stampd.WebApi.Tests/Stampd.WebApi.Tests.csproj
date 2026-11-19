@@ -9,6 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\..\src\Shared\Observability\AccessTokenPathRedactionEnricher.cs" Link="Shared\AccessTokenPathRedactionEnricher.cs" />
     <ProjectReference Include="..\..\src\Stampd.WebApi\Stampd.WebApi.csproj" />
     <!--
       v3.0 alpha.1 — test fixture holds a SqliteConnection open across the host
