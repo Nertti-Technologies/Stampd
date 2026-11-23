@@ -49,7 +49,7 @@
       them without an external mailbox. The package keeps the original AddMail4Dev /
       UseMail4Dev API names.
     -->
-    <PackageReference Include="Hermex" Version="2.0.0" />
+    <PackageReference Include="Hermex" Version="2.3.0" />
   </ItemGroup>
 
 </Project>
