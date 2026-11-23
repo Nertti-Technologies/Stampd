@@ -48,11 +48,11 @@
       },
       "OpenTelemetry.Exporter.Console": {
         "type": "Direct",
-        "requested": "[1.15.3, )",
-        "resolved": "1.15.3",
-        "contentHash": "QBGOoPwLHDXX+hXeUpspOjsqEn4vMkLw672QN+MzVWFBzjf625DdxLxhzowS1J/dRtW93U34rRbJec+4808fkg==",
+        "requested": "[1.21.0, )",
+        "resolved": "1.21.0",
+        "contentHash": "J8XbCU0TP+ULX9s+MGRe/iIvy5FZAi1J2YB3LyyxcYqH+nzDuUWEsTbzbL/jwqr3V/2njv564wK2NM1tn7OrfA==",
         "dependencies": {
-          "OpenTelemetry": "1.15.3"
+          "OpenTelemetry": "1.21.0"
         }
       },
       "OpenTelemetry.Exporter.OpenTelemetryProtocol": {
@@ -556,23 +556,26 @@
       },
       "OpenTelemetry": {
         "type": "Transitive",
-        "resolved": "1.15.3",
-        "contentHash": "N0i6WjPoHPbZyms1ugbDIFAJFuGlpeExJMU/+XSL0lQRUkg/D0utFkDoLXf8Z1km5B+xVZ2GyMXXiX8qdeNmPg==",
+        "resolved": "1.21.0",
+        "contentHash": "ynAzNO/ebDTPxARbz4z/HgL8azMk/iDk4GXFuIRQ6krr1+a5QMC4eoiXRl+e7COd+3RLyL/yTuE6bevwqbv4Bw==",
         "dependencies": {
-          "OpenTelemetry.Api.ProviderBuilderExtensions": "1.15.3"
+          "OpenTelemetry.Api.ProviderBuilderExtensions": "1.21.0"
         }
       },
       "OpenTelemetry.Api": {
         "type": "Transitive",
-        "resolved": "1.15.3",
-        "contentHash": "fX+fkCysfPut+qCcT3bKqyX4QN9Saf4CgX8HLOHywEVD+Xr7sULtfuypITpoDysjx8R59dn/3mWhgimMH8cm/g=="
+        "resolved": "1.21.0",
+        "contentHash": "KptD6ThegQORUzwot75zW2AUH6IDyKXH1R2yhovJPYfrzqSgHQidMfVfKLjaYEnJa5ySQgQm0RjuM6X+TCJ9yw==",
+        "dependencies": {
+          "System.Diagnostics.DiagnosticSource": "11.0.0"
+        }
       },
       "OpenTelemetry.Api.ProviderBuilderExtensions": {
         "type": "Transitive",
-        "resolved": "1.15.3",
-        "contentHash": "SYn0lqYDwLMWhv/zlNGsQcl2yX++yTumanX46bmOZE/ZDOd1WjPBO2kZaZgKLEZTZk48pavIFGJ6vOvxXgWVFQ==",
+        "resolved": "1.21.0",
+        "contentHash": "ZcBCBTGbzjj8Y+9UnZKbSjnRyKc2ub2IvvU68fFHKmyKzTS4hU+4/f0PO1GoIf7FTYLKTyw+l/EwLL/PPIDkxg==",
         "dependencies": {
-          "OpenTelemetry.Api": "1.15.3"
+          "OpenTelemetry.Api": "1.21.0"
         }
       },
       "PDFsharp": {
@@ -734,6 +737,11 @@
           "System.Composition.Runtime": "9.0.0"
         }
       },
+      "System.Diagnostics.DiagnosticSource": {
+        "type": "Transitive",
+        "resolved": "11.0.0",
+        "contentHash": "+boRR9uSKiIPtFeRLGwO5xylhDF80xpwM+dmk5jgIqqeUKLbujGkGICMTKqQrBzKO6fIp8BU8DV6YZkQukqo3A=="
+      },
       "System.IdentityModel.Tokens.Jwt": {
         "type": "Transitive",
         "resolved": "8.19.2",
@@ -783,7 +791,7 @@
         "type": "Project",
         "dependencies": {
           "AWSSDK.KeyManagementService": "[4.0.12.2, )",
-          "Stampd.Core": "[3.0.0, )"
+          "Stampd.Core": "[3.4.0, )"
         }
       },
       "stampd.crypto.azurekeyvault": {
@@ -792,20 +800,20 @@
           "Azure.Identity": "[1.21.0, )",
           "Azure.Security.KeyVault.Certificates": "[4.9.0, )",
           "Azure.Security.KeyVault.Keys": "[4.10.0, )",
-          "Stampd.Core": "[3.0.0, )"
+          "Stampd.Core": "[3.4.0, )"
         }
       },
       "stampd.crypto.localcertificate": {
         "type": "Project",
         "dependencies": {
           "BouncyCastle.Cryptography": "[2.6.2, )",
-          "Stampd.Core": "[3.0.0, )"
+          "Stampd.Core": "[3.4.0, )"
         }
       },
       "stampd.crypto.vault": {
         "type": "Project",
         "dependencies": {
-          "Stampd.Core": "[3.0.0, )",
+          "Stampd.Core": "[3.4.0, )",
           "VaultSharp": "[1.17.5.1, )"
         }
       },
@@ -813,7 +821,7 @@
         "type": "Project",
         "dependencies": {
           "MailKit": "[4.17.0, )",
-          "Stampd.Core": "[3.0.0, )",
+          "Stampd.Core": "[3.4.0, )",
           "System.Security.Cryptography.Pkcs": "[10.0.15, )"
         }
       },
@@ -824,28 +832,28 @@
           "PDFsharp": "[6.2.*, )",
           "SkiaSharp": "[3.119.4, )",
           "SkiaSharp.NativeAssets.Linux": "[3.119.4, )",
-          "Stampd.Core": "[3.0.0, )",
+          "Stampd.Core": "[3.4.0, )",
           "System.Security.Cryptography.Pkcs": "[10.0.15, )"
         }
       },
       "stampd.identity.emailotp": {
         "type": "Project",
         "dependencies": {
-          "Stampd.Core": "[3.0.0, )"
+          "Stampd.Core": "[3.4.0, )"
         }
       },
       "stampd.identity.oidc": {
         "type": "Project",
         "dependencies": {
           "Microsoft.AspNetCore.Authentication.JwtBearer": "[10.0.15, )",
-          "Stampd.Core": "[3.0.0, )"
+          "Stampd.Core": "[3.4.0, )"
         }
       },
       "stampd.identity.saml2": {
         "type": "Project",
         "dependencies": {
-          "Stampd.Core": "[3.0.0, )",
-          "Stampd.Identity.Oidc": "[3.0.0, )"
+          "Stampd.Core": "[3.4.0, )",
+          "Stampd.Identity.Oidc": "[3.4.0, )"
         }
       },
       "stampd.infrastructure": {
@@ -853,21 +861,21 @@
         "dependencies": {
           "Microsoft.EntityFrameworkCore": "[10.0.15, )",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.15, )",
-          "Stampd.Core": "[3.0.0, )"
+          "Stampd.Core": "[3.4.0, )"
         }
       },
       "stampd.infrastructure.sqlite": {
         "type": "Project",
         "dependencies": {
           "Microsoft.EntityFrameworkCore.Sqlite": "[10.0.15, )",
-          "Stampd.Infrastructure": "[3.0.0, )"
+          "Stampd.Infrastructure": "[3.4.0, )"
         }
       },
       "stampd.revocation.http": {
         "type": "Project",
         "dependencies": {
           "BouncyCastle.Cryptography": "[2.6.2, )",
-          "Stampd.Core": "[3.0.0, )"
+          "Stampd.Core": "[3.4.0, )"
         }
       },
       "stampd.storage.azureblob": {
@@ -875,41 +883,41 @@
         "dependencies": {
           "Azure.Identity": "[1.21.0, )",
           "Azure.Storage.Blobs": "[12.29.0, )",
-          "Stampd.Core": "[3.0.0, )"
+          "Stampd.Core": "[3.4.0, )"
         }
       },
       "stampd.storage.filesystem": {
         "type": "Project",
         "dependencies": {
-          "Stampd.Core": "[3.0.0, )"
+          "Stampd.Core": "[3.4.0, )"
         }
       },
       "stampd.storage.gcs": {
         "type": "Project",
         "dependencies": {
           "Google.Cloud.Storage.V1": "[4.14.0, )",
-          "Stampd.Core": "[3.0.0, )"
+          "Stampd.Core": "[3.4.0, )"
         }
       },
       "stampd.storage.s3": {
         "type": "Project",
         "dependencies": {
           "AWSSDK.S3": "[4.0.24.1, )",
-          "Stampd.Core": "[3.0.0, )"
+          "Stampd.Core": "[3.4.0, )"
         }
       },
       "stampd.timestamp.freetsa": {
         "type": "Project",
         "dependencies": {
-          "Stampd.Core": "[3.0.0, )",
-          "Stampd.Timestamp.Rfc3161": "[3.0.0, )"
+          "Stampd.Core": "[3.4.0, )",
+          "Stampd.Timestamp.Rfc3161": "[3.4.0, )"
         }
       },
       "stampd.timestamp.rfc3161": {
         "type": "Project",
         "dependencies": {
           "BouncyCastle.Cryptography": "[2.6.2, )",
-          "Stampd.Core": "[3.0.0, )"
+          "Stampd.Core": "[3.4.0, )"
         }
       }
     }
