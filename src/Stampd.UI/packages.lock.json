@@ -4,9 +4,9 @@
     "net10.0": {
       "Hermex": {
         "type": "Direct",
-        "requested": "[2.0.0, )",
-        "resolved": "2.0.0",
-        "contentHash": "1o0+zNzP+xjvSW6oTfQu/Uv+D0/yKNIXZHM8ScJ+qTNL6sF5uGxSpjI7vHsO46gL4amEpYjF/LSkHnrlI50SOg==",
+        "requested": "[2.3.0, )",
+        "resolved": "2.3.0",
+        "contentHash": "EfeYCdn4Fap3FJjK+Ch8XkqsOn3zLfsfU+9uvNfRwxlWemV0kUaWTuHfeiURBPpzF5PVsCGVeMAIWrfFm/XVHw==",
         "dependencies": {
           "Microsoft.Data.Sqlite": "10.0.15"
         }
